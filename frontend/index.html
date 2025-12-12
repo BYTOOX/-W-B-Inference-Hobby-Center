@@ -1298,6 +1298,9 @@
             await loadUserInfo();
             await loadModels();
 
+            // Check Ollama status (after auth)
+            await checkOllamaStatus();
+
             // Check for active downloads (survives page refresh)
             await checkActiveDownloads();
 
@@ -1305,8 +1308,9 @@
             try {
                 const response = await apiRequest('/api/chat/engine/status');
                 const status = await response.json();
-                if (status.loaded) {
+                if (status.loaded || status.model) {
                     modelLoaded = true;
+                    currentOllamaModel = status.model;
                     document.getElementById('chat-input').disabled = false;
                     document.getElementById('send-btn').disabled = false;
                 }
@@ -1425,9 +1429,6 @@
 
             // Initialize
             init();
-
-            // Check Ollama status
-            checkOllamaStatus();
         });
     </script>
 </body>
