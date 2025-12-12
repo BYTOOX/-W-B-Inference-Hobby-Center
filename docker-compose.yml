@@ -14,9 +14,8 @@ services:
       - /dev/dri:/dev/dri
     environment:
       - OLLAMA_HOST=0.0.0.0
-      # GFX1151 = Radeon 8060S (Strix Point) - use 11.0.1
+      # GFX1151 = Radeon 8060S (Strix Point)
       - HSA_OVERRIDE_GFX_VERSION=11.0.1
-      # Force GPU usage
       - ROCR_VISIBLE_DEVICES=0
       - HIP_VISIBLE_DEVICES=0
     group_add:
@@ -31,8 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: locallab
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    network_mode: host
     volumes:
       - /srv/models:/srv/models
       - /srv/docker/locallab/data:/app/data
@@ -44,12 +42,9 @@ services:
       - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
       - FIRST_ADMIN_USERNAME=${ADMIN_USER:-admin}
       - FIRST_ADMIN_PASSWORD=${ADMIN_PASS:-changeme}
-      - OLLAMA_HOST=http://ollama:11434
+      # Use localhost since both are on host network
+      - OLLAMA_HOST=http://127.0.0.1:11434
       - OLLAMA_ONLY=true
       - LOG_LEVEL=INFO
     depends_on:
       - ollama
-
-networks:
-  default:
-    name: locallab-network
