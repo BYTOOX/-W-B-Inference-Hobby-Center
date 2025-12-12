@@ -18,13 +18,12 @@ services:
       - HSA_OVERRIDE_GFX_VERSION=11.0.1
       - ROCR_VISIBLE_DEVICES=0
       - HIP_VISIBLE_DEVICES=0
-      # Force larger memory allocation for unified memory
-      - GPU_MAX_ALLOC_PERCENT=100
-      - GPU_SINGLE_ALLOC_PERCENT=100
-      - GPU_MAX_HEAP_SIZE=96G
+      # Optimize for iGPU unified memory
       - HSA_ENABLE_SDMA=0
-      # Allow using system RAM as GPU memory
-      - OLLAMA_GPU_OVERHEAD=0
+      - HSA_ENABLE_LARGE_BAR=1
+      # Disable aggressive allocation which crashes with huge buffers
+      # - GPU_MAX_ALLOC_PERCENT=100
+      # - GPU_SINGLE_ALLOC_PERCENT=100
     group_add:
       - video
 
