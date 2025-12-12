@@ -718,7 +718,18 @@
             localStorage.setItem('authToken', authToken);
 
             await loadUserInfo();
-            bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
+
+            // Properly hide modal and remove backdrop
+            const modalEl = document.getElementById('loginModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modalInstance.hide();
+
+            // Remove any leftover backdrop
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
             showToast('Login successful!', 'success');
             init();
         }
@@ -741,9 +752,13 @@
             }
         }
 
+        let loginModalInstance = null;
         function showLoginModal() {
-            const modal = new bootstrap.Modal(document.getElementById('loginModal'));
-            modal.show();
+            const modalEl = document.getElementById('loginModal');
+            if (!loginModalInstance) {
+                loginModalInstance = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+            }
+            loginModalInstance.show();
         }
 
         // ---------------------------------------------------------------------
