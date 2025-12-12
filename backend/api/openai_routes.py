@@ -3,6 +3,7 @@ RyzenAI-LocalLab OpenAI-Compatible API
 
 Provides OpenAI-compatible endpoints for external tool integration.
 Compatible with LangChain, Continue.dev, and other OpenAI SDK clients.
+Ollama-only mode - no PyTorch required.
 """
 
 import time
@@ -15,8 +16,7 @@ from pydantic import BaseModel, Field
 
 from backend.auth import get_current_active_user
 from backend.database import User
-from backend.services.inference_engine import GenerationParams, inference_engine
-from backend.services.model_manager import model_manager
+from backend.services.ollama_engine import ollama_engine
 
 router = APIRouter(prefix="/v1", tags=["OpenAI-Compatible API"])
 
@@ -41,8 +41,6 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = Field(default=2048, ge=1, le=32768)
     stream: bool = False
     stop: Optional[list[str]] = None
-    frequency_penalty: float = Field(default=0.0, ge=0.0, le=2.0)
-    presence_penalty: float = Field(default=0.0, ge=0.0, le=2.0)
 
 
 class ChatCompletionChoice(BaseModel):
@@ -116,30 +114,17 @@ async def list_models(current_user: User = Depends(get_current_active_user)):
 
     Compatible with OpenAI /v1/models endpoint.
     """
-    local_models = model_manager.list_local_models()
+    ollama_models = await ollama_engine.list_models()
 
     models = [
         ModelInfo(
-            id=m.id,
+            id=m.name,
             object="model",
-            created=int(m.download_date.timestamp()) if m.download_date else int(time.time()),
-            owned_by="local",
+            created=int(time.time()),
+            owned_by="ollama",
         )
-        for m in local_models
+        for m in ollama_models
     ]
-
-    # Add currently loaded model as the first if loaded
-    if inference_engine.is_loaded() and inference_engine.loaded_model_info:
-        loaded_id = inference_engine.loaded_model_info.model_id
-        models.insert(
-            0,
-            ModelInfo(
-                id=f"{loaded_id} (loaded)",
-                object="model",
-                created=int(inference_engine.loaded_model_info.loaded_at),
-                owned_by="local-loaded",
-            ),
-        )
 
     return ModelListResponse(object="list", data=models)
 
@@ -153,76 +138,76 @@ async def chat_completions(
     Create a chat completion.
 
     Compatible with OpenAI /v1/chat/completions endpoint.
+    Uses Ollama for inference.
     """
-    # Check if model is loaded
-    if not inference_engine.is_loaded():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No model loaded. Use the /api/chat/engine/load endpoint first.",
-        )
-
     # Convert messages
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
-    # Extract system prompt if present
-    system_prompt = None
-    if messages and messages[0]["role"] == "system":
-        system_prompt = messages[0]["content"]
-        messages = messages[1:]
-
-    # Generation parameters
-    params = GenerationParams(
-        max_new_tokens=request.max_tokens or 2048,
-        temperature=request.temperature,
-        top_p=request.top_p,
-        repetition_penalty=1.0 + request.frequency_penalty,
-        stop_sequences=request.stop or [],
-    )
+    # Determine model to use
+    model = request.model
+    if not model or model == "default":
+        if ollama_engine.current_model:
+            model = ollama_engine.current_model
+        else:
+            # Get first available model
+            ollama_models = await ollama_engine.list_models()
+            if ollama_models:
+                model = ollama_models[0].name
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No models available. Pull a model first with: ollama pull qwen3:8b",
+                )
 
     # Generate unique ID
     completion_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
     created = int(time.time())
-    model_id = inference_engine.loaded_model_info.model_id if inference_engine.loaded_model_info else "unknown"
 
     if request.stream:
         # Streaming response
         async def generate():
             import json
 
-            full_response = ""
-            final_stats = None
+            prompt_tokens = 0
+            completion_tokens = 0
 
-            async for token, stats in inference_engine.generate_stream(
+            async for chunk in ollama_engine.generate_stream(
+                model=model,
                 messages=messages,
-                params=params,
-                system_prompt=system_prompt,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                max_tokens=request.max_tokens or 2048,
             ):
-                full_response += token
-                if stats:
-                    final_stats = stats
+                if chunk.get("error"):
+                    yield f"data: {json.dumps({'error': chunk['error']})}\n\n"
+                    return
 
-                if token:
-                    chunk = ChatCompletionStreamResponse(
+                if chunk.get("content"):
+                    response = ChatCompletionStreamResponse(
                         id=completion_id,
                         object="chat.completion.chunk",
                         created=created,
-                        model=model_id,
+                        model=model,
                         choices=[
                             ChatCompletionStreamChoice(
                                 index=0,
-                                delta={"content": token},
+                                delta={"content": chunk["content"]},
                                 finish_reason=None,
                             )
                         ],
                     )
-                    yield f"data: {chunk.model_dump_json()}\n\n"
+                    yield f"data: {response.model_dump_json()}\n\n"
+
+                if chunk.get("done"):
+                    prompt_tokens = chunk.get("prompt_eval_count", 0)
+                    completion_tokens = chunk.get("eval_count", 0)
 
             # Final chunk with finish_reason
             final_chunk = ChatCompletionStreamResponse(
                 id=completion_id,
                 object="chat.completion.chunk",
                 created=created,
-                model=model_id,
+                model=model,
                 choices=[
                     ChatCompletionStreamChoice(
                         index=0,
@@ -244,28 +229,33 @@ async def chat_completions(
         )
     else:
         # Non-streaming response
-        full_response, stats = await inference_engine.generate(
+        content, stats = await ollama_engine.generate(
+            model=model,
             messages=messages,
-            params=params,
-            system_prompt=system_prompt,
+            temperature=request.temperature,
+            top_p=request.top_p,
+            max_tokens=request.max_tokens or 2048,
         )
+
+        prompt_tokens = stats.get("prompt_eval_count", 0)
+        completion_tokens = stats.get("eval_count", 0)
 
         return ChatCompletionResponse(
             id=completion_id,
             object="chat.completion",
             created=created,
-            model=model_id,
+            model=model,
             choices=[
                 ChatCompletionChoice(
                     index=0,
-                    message=ChatMessage(role="assistant", content=full_response),
+                    message=ChatMessage(role="assistant", content=content),
                     finish_reason="stop",
                 )
             ],
             usage=ChatCompletionUsage(
-                prompt_tokens=stats.prompt_tokens if stats else 0,
-                completion_tokens=stats.completion_tokens if stats else 0,
-                total_tokens=stats.total_tokens if stats else 0,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
             ),
         )
 
@@ -276,8 +266,9 @@ async def chat_completions(
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
+    available = await ollama_engine.is_available()
     return {
-        "status": "ok",
-        "model_loaded": inference_engine.is_loaded(),
-        "device": inference_engine.device,
+        "status": "ok" if available else "degraded",
+        "ollama_available": available,
+        "current_model": ollama_engine.current_model,
     }
