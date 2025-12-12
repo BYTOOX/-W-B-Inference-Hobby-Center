@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RyzenAI-LocalLab</title>
+    
+    <!-- Bootstrap 5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-cyan: #00d4ff;
+            --accent-purple: #a855f7;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-orange: #d29922;
+            --border-color: #30363d;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1f2e 100%);
+            min-height: 100vh;
+        }
+        
+        .navbar {
+            background: rgba(13, 17, 23, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card {
+            background: rgba(22, 27, 34, 0.8);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+        
+        .card-header {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(22, 27, 34, 0.9), rgba(33, 38, 45, 0.9));
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.15);
+        }
+        
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+        
+        .stat-value.warning { color: var(--accent-orange); }
+        .stat-value.danger { color: var(--accent-red); }
+        .stat-value.success { color: var(--accent-green); }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .btn-gradient {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
+            color: white;
+        }
+        
+        .chat-container {
+            height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+        
+        .chat-message {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+        
+        .chat-message.user {
+            background: var(--bg-tertiary);
+            margin-left: 20%;
+        }
+        
+        .chat-message.assistant {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(168, 85, 247, 0.1));
+            margin-right: 20%;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+        
+        .model-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .model-card:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+        }
+        
+        .model-card.loaded {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(63, 185, 80, 0.2);
+        }
+        
+        .progress {
+            height: 8px;
+            background: var(--bg-tertiary);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+        }
+        
+        .form-control, .form-select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.25rem rgba(0, 212, 255, 0.15);
+        }
+        
+        .nav-pills .nav-link {
+            color: var(--text-secondary);
+            border-radius: 8px;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: white;
+        }
+        
+        .badge-format {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+        
+        .toast-container {
+            z-index: 9999;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        /* Loading spinner */
+        .spinner-glow {
+            animation: glow 1.5s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px var(--accent-cyan); }
+            50% { box-shadow: 0 0 20px var(--accent-cyan), 0 0 30px var(--accent-purple); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cpu me-2"></i>RyzenAI-LocalLab
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-page="chat"><i class="bi bi-chat-dots me-1"></i>Chat</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="models"><i class="bi bi-box me-1"></i>Models</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-3" id="api-status">
+                        <i class="bi bi-circle-fill me-1"></i>API Connected
+                    </span>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i><span id="username-display">admin</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" id="logout-btn"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        <!-- Chat Page -->
+        <div id="page-chat" class="page-content">
+            <div class="row">
+                <!-- Chat Area -->
+                <div class="col-lg-9">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-chat-dots me-2"></i>Chat
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <select class="form-select form-select-sm" id="model-selector" style="width: 250px;">
+                                    <option value="">Select a model...</option>
+                                </select>
+                                <button class="btn btn-sm btn-gradient" id="load-model-btn">
+                                    <i class="bi bi-lightning-charge me-1"></i>Load
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body chat-container" id="chat-messages">
+                            <div class="text-center text-muted py-5">
+                                <i class="bi bi-robot display-1 mb-3 d-block" style="opacity: 0.3;"></i>
+                                <p>Load a model to start chatting</p>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <form id="chat-form" class="d-flex gap-2">
+                                <input type="text" class="form-control" id="chat-input" placeholder="Type your message..." disabled>
+                                <button type="submit" class="btn btn-gradient" id="send-btn" disabled>
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sidebar -->
+                <div class="col-lg-3">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <i class="bi bi-sliders me-2"></i>Generation Parameters
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Temperature: <span id="temp-value">0.7</span></label>
+                                <input type="range" class="form-range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Top-P: <span id="topp-value">0.9</span></label>
+                                <input type="range" class="form-range" id="top-p" min="0" max="1" step="0.05" value="0.9">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Max Tokens: <span id="tokens-value">2048</span></label>
+                                <input type="range" class="form-range" id="max-tokens" min="64" max="8192" step="64" value="2048">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-activity me-2"></i>Live Stats
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">CPU</span>
+                                <span id="cpu-usage">--%</span>
+                            </div>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" id="cpu-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">RAM</span>
+                                <span id="ram-usage">--%</span>
+                            </div>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" id="ram-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">GPU</span>
+                                <span id="gpu-usage">--%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="gpu-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Models Page -->
+        <div id="page-models" class="page-content d-none">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-cloud-download me-2"></i>Download New Model
+                        </div>
+                        <div class="card-body">
+                            <form id="download-form" class="row g-3 align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">HuggingFace Repository ID</label>
+                                    <input type="text" class="form-control" id="repo-id" placeholder="mistralai/Devstral-Small-2505">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-outline-info w-100" id="check-model-btn">
+                                        <i class="bi bi-search me-1"></i>Check
+                                    </button>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-gradient w-100">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="model-info-preview" class="mt-3 d-none">
+                                <div class="alert alert-info mb-0">
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong id="preview-name">Model Name</strong></span>
+                                        <span id="preview-size">0 GB</span>
+                                    </div>
+                                    <small id="preview-compat" class="text-muted"></small>
+                                </div>
+                            </div>
+                            <div id="download-progress" class="mt-3 d-none">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span id="download-filename">Downloading...</span>
+                                    <span id="download-percent">0%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="download-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <h5 class="mb-3"><i class="bi bi-hdd me-2"></i>Local Models</h5>
+                    <div id="models-list" class="row g-3">
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="bi bi-inbox display-4 d-block mb-3" style="opacity: 0.3;"></i>
+                            <p>No models downloaded yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page-content d-none">
+            <h4 class="mb-4"><i class="bi bi-speedometer2 me-2"></i>System Dashboard</h4>
+            
+            <div class="row g-4 mb-4">
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label">CPU Usage</div>
+                        <div class="stat-value" id="dash-cpu">--%</div>
+                        <small class="text-muted" id="dash-cpu-info">-- cores @ -- GHz</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label">Memory Usage</div>
+                        <div class="stat-value" id="dash-ram">--%</div>
+                        <small class="text-muted" id="dash-ram-info">-- / -- GB</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label">GPU Usage</div>
+                        <div class="stat-value" id="dash-gpu">--%</div>
+                        <small class="text-muted" id="dash-gpu-info">--</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-lightning-charge me-2"></i>Inference Stats
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="h4 text-info" id="tokens-per-sec">--</div>
+                                    <small class="text-muted">Tokens/sec</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-info" id="ttft">--</div>
+                                    <small class="text-muted">TTFT (s)</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-info" id="total-tokens">--</div>
+                                    <small class="text-muted">Total Tokens</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-hdd me-2"></i>Storage
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="h4 text-success" id="models-count">--</div>
+                                    <small class="text-muted">Models</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-warning" id="models-size">--</div>
+                                    <small class="text-muted">Size (GB)</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-info" id="disk-free">--</div>
+                                    <small class="text-muted">Free (GB)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">API Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="api-key-display" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copy-api-key">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-warning btn-sm" id="regen-api-key">
+                        <i class="bi bi-arrow-repeat me-1"></i>Regenerate API Key
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-box-arrow-in-right me-2"></i>Login</h5>
+                </div>
+                <div class="modal-body">
+                    <form id="login-form">
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" id="login-username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" id="login-password" required>
+                        </div>
+                        <button type="submit" class="btn btn-gradient w-100">Login</button>
+                    </form>
+                    <hr>
+                    <p class="text-muted small text-center mb-0">
+                        Don't have an account? <a href="#" id="show-register">Register</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Highlight.js for code -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+    <script>
+        // =====================================================================
+        // RyzenAI-LocalLab Frontend Application
+        // =====================================================================
+        
+        const API_BASE = '';  // Same origin
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        let modelLoaded = false;
+        let chatMessages = [];
+        let statsInterval = null;
+        
+        // ---------------------------------------------------------------------
+        // Utilities
+        // ---------------------------------------------------------------------
+        function showToast(message, type = 'info') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast show bg-${type} text-white`;
+            toast.innerHTML = `
+                <div class="toast-body d-flex justify-content-between align-items-center">
+                    <span>${message}</span>
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+        
+        async function apiRequest(endpoint, options = {}) {
+            const headers = {
+                'Content-Type': 'application/json',
+                ...options.headers
+            };
+            
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers
+                });
+                
+                if (response.status === 401) {
+                    logout();
+                    throw new Error('Session expired');
+                }
+                
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || `HTTP ${response.status}`);
+                }
+                
+                return response;
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
+            }
+        }
+        
+        // ---------------------------------------------------------------------
+        // Authentication
+        // ---------------------------------------------------------------------
+        async function login(username, password) {
+            const formData = new URLSearchParams();
+            formData.append('username', username);
+            formData.append('password', password);
+            
+            const response = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Invalid credentials');
+            }
+            
+            const data = await response.json();
+            authToken = data.access_token;
+            localStorage.setItem('authToken', authToken);
+            
+            await loadUserInfo();
+            bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
+            showToast('Login successful!', 'success');
+            init();
+        }
+        
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            showLoginModal();
+        }
+        
+        async function loadUserInfo() {
+            try {
+                const response = await apiRequest('/api/auth/me');
+                currentUser = await response.json();
+                document.getElementById('username-display').textContent = currentUser.username;
+                document.getElementById('api-key-display').value = currentUser.api_key;
+            } catch (error) {
+                logout();
+            }
+        }
+        
+        function showLoginModal() {
+            const modal = new bootstrap.Modal(document.getElementById('loginModal'));
+            modal.show();
+        }
+        
+        // ---------------------------------------------------------------------
+        // Models
+        // ---------------------------------------------------------------------
+        async function loadModels() {
+            try {
+                const response = await apiRequest('/api/models/');
+                const models = await response.json();
+                
+                // Update model selector
+                const selector = document.getElementById('model-selector');
+                selector.innerHTML = '<option value="">Select a model...</option>';
+                
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.path;
+                    option.textContent = `${model.name} (${model.size_gb.toFixed(1)} GB)`;
+                    selector.appendChild(option);
+                });
+                
+                // Update models list
+                const modelsList = document.getElementById('models-list');
+                if (models.length === 0) {
+                    modelsList.innerHTML = `
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="bi bi-inbox display-4 d-block mb-3" style="opacity: 0.3;"></i>
+                            <p>No models downloaded yet</p>
+                        </div>
+                    `;
+                } else {
+                    modelsList.innerHTML = models.map(model => `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="model-card">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-0">${model.name}</h6>
+                                    <span class="badge bg-secondary badge-format">${model.format}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+                                    <span>${model.size_gb.toFixed(1)} GB</span>
+                                    <span class="badge ${model.compatibility === 'compatible' ? 'bg-success' : 'bg-warning'}">
+                                        ${model.compatibility}
+                                    </span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadModel('${model.path}')">
+                                        <i class="bi bi-lightning-charge me-1"></i>Load
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteModel('${model.id}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                showToast('Failed to load models: ' + error.message, 'danger');
+            }
+        }
+        
+        async function loadModel(modelPath) {
+            try {
+                showToast('Loading model...', 'info');
+                const response = await apiRequest('/api/chat/engine/load', {
+                    method: 'POST',
+                    body: JSON.stringify({ model_path: modelPath })
+                });
+                const data = await response.json();
+                modelLoaded = true;
+                
+                document.getElementById('chat-input').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                
+                showToast(`Model loaded: ${data.model_id} (${data.memory_gb} GB)`, 'success');
+            } catch (error) {
+                showToast('Failed to load model: ' + error.message, 'danger');
+            }
+        }
+        
+        async function deleteModel(modelId) {
+            if (!confirm('Are you sure you want to delete this model?')) return;
+            
+            try {
+                await apiRequest(`/api/models/${encodeURIComponent(modelId)}`, { method: 'DELETE' });
+                showToast('Model deleted', 'success');
+                loadModels();
+            } catch (error) {
+                showToast('Failed to delete model: ' + error.message, 'danger');
+            }
+        }
+        
+        async function checkModel() {
+            const repoId = document.getElementById('repo-id').value.trim();
+            if (!repoId) return;
+            
+            try {
+                const response = await apiRequest(`/api/models/info/${encodeURIComponent(repoId)}`);
+                const info = await response.json();
+                
+                document.getElementById('preview-name').textContent = info.name;
+                document.getElementById('preview-size').textContent = `${info.size_gb.toFixed(1)} GB`;
+                document.getElementById('preview-compat').textContent = info.compatibility_message;
+                document.getElementById('model-info-preview').classList.remove('d-none');
+            } catch (error) {
+                showToast('Model not found: ' + error.message, 'danger');
+            }
+        }
+        
+        async function downloadModel(repoId) {
+            const progressDiv = document.getElementById('download-progress');
+            const progressBar = document.getElementById('download-bar');
+            const progressPercent = document.getElementById('download-percent');
+            const progressFilename = document.getElementById('download-filename');
+            
+            progressDiv.classList.remove('d-none');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/models/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+                    
+                    for (const line of lines) {
+                        const data = JSON.parse(line.slice(6));
+                        progressFilename.textContent = data.filename || 'Downloading...';
+                        progressPercent.textContent = `${data.percent.toFixed(1)}%`;
+                        progressBar.style.width = `${data.percent}%`;
+                        
+                        if (data.status === 'completed') {
+                            showToast('Download complete!', 'success');
+                            progressDiv.classList.add('d-none');
+                            loadModels();
+                        } else if (data.status === 'error') {
+                            showToast('Download failed: ' + data.error, 'danger');
+                            progressDiv.classList.add('d-none');
+                        }
+                    }
+                }
+            } catch (error) {
+                showToast('Download failed: ' + error.message, 'danger');
+                progressDiv.classList.add('d-none');
+            }
+        }
+        
+        // ---------------------------------------------------------------------
+        // Chat
+        // ---------------------------------------------------------------------
+        async function sendMessage(content) {
+            if (!modelLoaded) {
+                showToast('Please load a model first', 'warning');
+                return;
+            }
+            
+            // Add user message
+            addChatMessage('user', content);
+            
+            // Add assistant placeholder
+            const assistantDiv = addChatMessage('assistant', '<span class="spinner-border spinner-border-sm"></span> Generating...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/chat/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        content,
+                        temperature: parseFloat(document.getElementById('temperature').value),
+                        top_p: parseFloat(document.getElementById('top-p').value),
+                        max_tokens: parseInt(document.getElementById('max-tokens').value)
+                    })
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+                    
+                    for (const line of lines) {
+                        const data = JSON.parse(line.slice(6));
+                        
+                        if (data.token) {
+                            fullResponse += data.token;
+                            assistantDiv.innerHTML = marked.parse(fullResponse);
+                            hljs.highlightAll();
+                        }
+                        
+                        if (data.stats) {
+                            document.getElementById('tokens-per-sec').textContent = data.stats.tokens_per_second.toFixed(1);
+                            document.getElementById('ttft').textContent = data.stats.time_to_first_token.toFixed(2);
+                            document.getElementById('total-tokens').textContent = data.stats.total_tokens;
+                        }
+                    }
+                }
+            } catch (error) {
+                assistantDiv.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
+            }
+        }
+        
+        function addChatMessage(role, content) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-message ${role}`;
+            div.innerHTML = role === 'user' ? content : marked.parse(content);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+        
+        // ---------------------------------------------------------------------
+        // Stats
+        // ---------------------------------------------------------------------
+        async function updateStats() {
+            try {
+                const response = await apiRequest('/api/system/stats');
+                const stats = await response.json();
+                
+                // Sidebar stats
+                document.getElementById('cpu-usage').textContent = `${stats.cpu.load_percent.toFixed(1)}%`;
+                document.getElementById('cpu-bar').style.width = `${stats.cpu.load_percent}%`;
+                
+                document.getElementById('ram-usage').textContent = `${stats.memory.percent_used.toFixed(1)}%`;
+                document.getElementById('ram-bar').style.width = `${stats.memory.percent_used}%`;
+                
+                document.getElementById('gpu-usage').textContent = stats.gpu.available ? `${stats.gpu.utilization_percent.toFixed(1)}%` : 'N/A';
+                document.getElementById('gpu-bar').style.width = `${stats.gpu.utilization_percent}%`;
+                
+                // Dashboard stats
+                document.getElementById('dash-cpu').textContent = `${stats.cpu.load_percent.toFixed(1)}%`;
+                document.getElementById('dash-cpu-info').textContent = `${stats.cpu.core_count} cores @ ${(stats.cpu.frequency_mhz/1000).toFixed(1)} GHz`;
+                
+                document.getElementById('dash-ram').textContent = `${stats.memory.percent_used.toFixed(1)}%`;
+                document.getElementById('dash-ram-info').textContent = `${stats.memory.used_gb.toFixed(1)} / ${stats.memory.total_gb.toFixed(1)} GB`;
+                
+                document.getElementById('dash-gpu').textContent = stats.gpu.available ? `${stats.gpu.utilization_percent.toFixed(1)}%` : 'N/A';
+                document.getElementById('dash-gpu-info').textContent = stats.gpu.available ? stats.gpu.name : 'No GPU detected';
+                
+            } catch (error) {
+                console.error('Stats error:', error);
+            }
+        }
+        
+        async function updateStorage() {
+            try {
+                const response = await apiRequest('/api/models/storage');
+                const storage = await response.json();
+                
+                document.getElementById('models-count').textContent = storage.models_count;
+                document.getElementById('models-size').textContent = storage.models_size_gb.toFixed(1);
+                document.getElementById('disk-free').textContent = storage.disk_free_gb.toFixed(1);
+            } catch (error) {
+                console.error('Storage error:', error);
+            }
+        }
+        
+        // ---------------------------------------------------------------------
+        // Navigation
+        // ---------------------------------------------------------------------
+        function showPage(pageId) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.add('d-none'));
+            document.getElementById(`page-${pageId}`).classList.remove('d-none');
+            
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`[data-page="${pageId}"]`).classList.add('active');
+            
+            if (pageId === 'models') loadModels();
+            if (pageId === 'dashboard') updateStorage();
+        }
+        
+        // ---------------------------------------------------------------------
+        // Initialization
+        // ---------------------------------------------------------------------
+        async function init() {
+            if (!authToken) {
+                showLoginModal();
+                return;
+            }
+            
+            await loadUserInfo();
+            await loadModels();
+            
+            // Check engine status
+            try {
+                const response = await apiRequest('/api/chat/engine/status');
+                const status = await response.json();
+                if (status.loaded) {
+                    modelLoaded = true;
+                    document.getElementById('chat-input').disabled = false;
+                    document.getElementById('send-btn').disabled = false;
+                }
+            } catch (error) {
+                console.error('Engine status error:', error);
+            }
+            
+            // Start stats polling
+            updateStats();
+            statsInterval = setInterval(updateStats, 3000);
+        }
+        
+        // ---------------------------------------------------------------------
+        // Event Listeners
+        // ---------------------------------------------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            // Navigation
+            document.querySelectorAll('[data-page]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showPage(link.dataset.page);
+                });
+            });
+            
+            // Login form
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('login-username').value;
+                const password = document.getElementById('login-password').value;
+                try {
+                    await login(username, password);
+                } catch (error) {
+                    showToast(error.message, 'danger');
+                }
+            });
+            
+            // Logout
+            document.getElementById('logout-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                logout();
+            });
+            
+            // Chat form
+            document.getElementById('chat-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const input = document.getElementById('chat-input');
+                const content = input.value.trim();
+                if (content) {
+                    sendMessage(content);
+                    input.value = '';
+                }
+            });
+            
+            // Model load button
+            document.getElementById('load-model-btn').addEventListener('click', () => {
+                const path = document.getElementById('model-selector').value;
+                if (path) loadModel(path);
+            });
+            
+            // Check model button
+            document.getElementById('check-model-btn').addEventListener('click', checkModel);
+            
+            // Download form
+            document.getElementById('download-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const repoId = document.getElementById('repo-id').value.trim();
+                if (repoId) downloadModel(repoId);
+            });
+            
+            // Parameter sliders
+            document.getElementById('temperature').addEventListener('input', (e) => {
+                document.getElementById('temp-value').textContent = e.target.value;
+            });
+            document.getElementById('top-p').addEventListener('input', (e) => {
+                document.getElementById('topp-value').textContent = e.target.value;
+            });
+            document.getElementById('max-tokens').addEventListener('input', (e) => {
+                document.getElementById('tokens-value').textContent = e.target.value;
+            });
+            
+            // Copy API key
+            document.getElementById('copy-api-key').addEventListener('click', () => {
+                const key = document.getElementById('api-key-display').value;
+                navigator.clipboard.writeText(key);
+                showToast('API Key copied!', 'success');
+            });
+            
+            // Regenerate API key
+            document.getElementById('regen-api-key').addEventListener('click', async () => {
+                try {
+                    const response = await apiRequest('/api/auth/regenerate-api-key', { method: 'POST' });
+                    const user = await response.json();
+                    document.getElementById('api-key-display').value = user.api_key;
+                    showToast('API Key regenerated!', 'success');
+                } catch (error) {
+                    showToast('Failed to regenerate API key', 'danger');
+                }
+            });
+            
+            // Initialize
+            init();
+        });
+    </script>
+</body>
+</html>

@@ -6,14 +6,23 @@ Main application with all routes, middleware, and lifecycle events.
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.api import auth_routes, chat_routes, model_routes, openai_routes, system_routes
 from backend.config import settings
 from backend.database import init_db
+
+
+# =============================================================================
+# Paths
+# =============================================================================
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 
 # =============================================================================
@@ -120,8 +129,8 @@ app.include_router(system_routes.router)
 # =============================================================================
 @app.get("/", include_in_schema=False)
 async def root():
-    """Redirect to API documentation."""
-    return RedirectResponse(url="/docs")
+    """Serve the frontend application."""
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 
 @app.get("/api")
