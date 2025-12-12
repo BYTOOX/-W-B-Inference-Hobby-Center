@@ -1,32 +1,7 @@
 services:
   # ==========================================================================
-  # Ollama - LLM Inference with AMD ROCm GPU (GFX1151)
-  # ==========================================================================
-  ollama:
-    image: ollama/ollama:rocm
-    container_name: ollama
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - /srv/docker/ollama:/root/.ollama
-    devices:
-      - /dev/kfd:/dev/kfd
-      - /dev/dri:/dev/dri
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-      # GFX1151 = Radeon 8060S (Strix Point) - Native ID
-      - HSA_OVERRIDE_GFX_VERSION=11.5.1
-      - ROCR_VISIBLE_DEVICES=0
-      - HIP_VISIBLE_DEVICES=0
-      # Optimize for iGPU unified memory allocation
-      - HSA_ENABLE_LARGE_BAR=1
-      # Experimental: Reduce allocation fragmentation
-      - OLLAMA_GPU_OVERHEAD=0
-    group_add:
-      - video
-
-  # ==========================================================================
   # RyzenAI-LocalLab - FastAPI Backend + Frontend
+  # Running alongside native Windows Ollama
   # ==========================================================================
   locallab:
     build:
@@ -34,10 +9,12 @@ services:
       dockerfile: Dockerfile
     container_name: locallab
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "8000:8000"
     volumes:
-      - /srv/models:/srv/models
-      - /srv/docker/locallab/data:/app/data
+      # Map local folders for persistence
+      - ./models:/srv/models
+      - ./data:/app/data
     environment:
       - MODELS_PATH=/srv/models
       - DATA_PATH=/app/data
@@ -46,9 +23,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
       - FIRST_ADMIN_USERNAME=${ADMIN_USER:-admin}
       - FIRST_ADMIN_PASSWORD=${ADMIN_PASS:-changeme}
-      # Use localhost since both are on host network
-      - OLLAMA_HOST=http://127.0.0.1:11434
+      # Point to native Windows Ollama instance
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - OLLAMA_ONLY=true
       - LOG_LEVEL=INFO
-    depends_on:
-      - ollama
