@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Ollama - LLM Inference with AMD ROCm GPU
+  # ==========================================================================
+  ollama:
+    image: ollama/ollama:rocm
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - /srv/docker/ollama:/root/.ollama
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+    group_add:
+      - video
+      - render
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # RyzenAI-LocalLab - FastAPI Backend + Frontend
+  # ==========================================================================
+  locallab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locallab
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /srv/models:/srv/models
+      - /srv/docker/locallab/data:/app/data
+    environment:
+      - MODELS_PATH=/srv/models
+      - DATA_PATH=/app/data
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
+      - FIRST_ADMIN_USERNAME=${ADMIN_USER:-admin}
+      - FIRST_ADMIN_PASSWORD=${ADMIN_PASS:-changeme}
+      - OLLAMA_HOST=http://ollama:11434
+      - LOG_LEVEL=INFO
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  default:
+    name: locallab-network
