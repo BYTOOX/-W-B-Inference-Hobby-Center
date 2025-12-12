@@ -124,11 +124,24 @@ log_info "Data directory: ${DATA_DIR}"
 echo ""
 log_info "Setting up Python virtual environment..."
 
+# Check if venv exists AND is valid (has activate script)
+if [[ -d "$VENV_DIR" ]] && [[ ! -f "${VENV_DIR}/bin/activate" ]]; then
+    log_warn "Virtual environment is corrupted. Recreating..."
+    rm -rf "$VENV_DIR"
+fi
+
 if [[ ! -d "$VENV_DIR" ]]; then
+    log_info "Creating virtual environment..."
     python3 -m venv "$VENV_DIR"
     log_info "Virtual environment created at: ${VENV_DIR}"
 else
     log_info "Virtual environment already exists."
+fi
+
+# Verify venv is valid
+if [[ ! -f "${VENV_DIR}/bin/activate" ]]; then
+    log_error "Failed to create virtual environment. Check Python installation."
+    exit 1
 fi
 
 # Activate venv
