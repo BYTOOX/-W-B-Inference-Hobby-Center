@@ -43,12 +43,38 @@ class ChatRequest(BaseModel):
 # =============================================================================
 @router.get("/status")
 async def get_ollama_status(current_user: User = Depends(get_current_active_user)):
-    """Check if Ollama is available."""
+    """Check if Ollama is available and GPU status."""
     available = await ollama_engine.is_available()
+    
+    # Check GPU status by querying Ollama
+    gpu_info = None
+    if available:
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                # Get running models to check GPU usage
+                response = await client.get(f"{ollama_engine.base_url}/api/ps")
+                if response.status_code == 200:
+                    data = response.json()
+                    models = data.get("models", [])
+                    if models:
+                        # Check if using GPU
+                        model_info = models[0]
+                        size_vram = model_info.get("size_vram", 0)
+                        size = model_info.get("size", 0)
+                        gpu_info = {
+                            "using_gpu": size_vram > 0,
+                            "vram_used_gb": round(size_vram / 1e9, 2),
+                            "model_size_gb": round(size / 1e9, 2),
+                        }
+        except Exception:
+            pass
+    
     return {
         "available": available,
         "base_url": ollama_engine.base_url,
         "current_model": ollama_engine.current_model,
+        "gpu": gpu_info,
     }
 
 

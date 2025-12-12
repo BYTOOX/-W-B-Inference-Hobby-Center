@@ -1,6 +1,6 @@
 services:
   # ==========================================================================
-  # Ollama - LLM Inference with AMD ROCm GPU
+  # Ollama - LLM Inference with AMD ROCm GPU (GFX1151)
   # ==========================================================================
   ollama:
     image: ollama/ollama:rocm
@@ -15,7 +15,11 @@ services:
       - /dev/dri:/dev/dri
     environment:
       - OLLAMA_HOST=0.0.0.0
-      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      # GFX1151 = Radeon 8060S (Strix Point) - use 11.0.1
+      - HSA_OVERRIDE_GFX_VERSION=11.0.1
+      # Force GPU usage
+      - ROCR_VISIBLE_DEVICES=0
+      - HIP_VISIBLE_DEVICES=0
     group_add:
       - video
 
