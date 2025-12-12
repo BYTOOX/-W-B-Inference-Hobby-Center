@@ -284,6 +284,7 @@ class ModelManager:
     async def download_model(self, repo_id: str) -> AsyncGenerator[DownloadProgress, None]:
         """
         Download a model from HuggingFace with progress updates.
+        Uses snapshot_download with hf_transfer for maximum speed.
 
         Args:
             repo_id: HuggingFace repository ID
@@ -291,70 +292,93 @@ class ModelManager:
         Yields:
             DownloadProgress updates
         """
+        import asyncio
+        import os
         import time
+
+        # Enable hf_transfer for faster downloads
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
         local_dir = self.models_path / repo_id.replace("/", "--")
         local_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Get file list first
+            # Get model info for size estimation
             model_info = self.hf_api.model_info(repo_id, files_metadata=True)
             files = [f for f in model_info.siblings if f.size]
             total_size = sum(f.size for f in files)
-            downloaded_size = 0
+
+            yield DownloadProgress(
+                model_id=repo_id,
+                filename="Initializing fast download...",
+                downloaded_bytes=0,
+                total_bytes=total_size,
+                percent=0,
+                speed_mbps=0,
+                eta_seconds=0,
+                status="downloading",
+            )
 
             start_time = time.time()
 
-            for file_info in files:
-                filename = file_info.rfilename
-                file_size = file_info.size or 0
+            # Run snapshot_download in executor (it's blocking but fast)
+            loop = asyncio.get_event_loop()
 
-                yield DownloadProgress(
-                    model_id=repo_id,
-                    filename=filename,
-                    downloaded_bytes=downloaded_size,
-                    total_bytes=total_size,
-                    percent=(downloaded_size / total_size * 100) if total_size > 0 else 0,
-                    speed_mbps=0,
-                    eta_seconds=0,
-                    status="downloading",
-                )
-
-                # Download file
-                hf_hub_download(
+            def do_download():
+                return snapshot_download(
                     repo_id=repo_id,
-                    filename=filename,
                     local_dir=local_dir,
                     local_dir_use_symlinks=False,
+                    resume_download=True,
                 )
 
-                downloaded_size += file_size
+            # Start download in background
+            download_task = loop.run_in_executor(None, do_download)
 
-                # Calculate speed and ETA
+            # Monitor progress by checking directory size
+            while not download_task.done():
+                await asyncio.sleep(2)
+
+                # Calculate current size
+                current_size = 0
+                for f in local_dir.rglob("*"):
+                    if f.is_file():
+                        try:
+                            current_size += f.stat().st_size
+                        except OSError:
+                            pass
+
                 elapsed = time.time() - start_time
-                speed_bps = downloaded_size / elapsed if elapsed > 0 else 0
+                speed_bps = current_size / elapsed if elapsed > 0 else 0
                 speed_mbps = speed_bps / (1024 * 1024)
-                remaining = total_size - downloaded_size
+                remaining = total_size - current_size
                 eta = int(remaining / speed_bps) if speed_bps > 0 else 0
+                percent = (current_size / total_size * 100) if total_size > 0 else 0
 
                 yield DownloadProgress(
                     model_id=repo_id,
-                    filename=filename,
-                    downloaded_bytes=downloaded_size,
+                    filename=f"Downloading... {speed_mbps:.1f} MB/s",
+                    downloaded_bytes=current_size,
                     total_bytes=total_size,
-                    percent=(downloaded_size / total_size * 100) if total_size > 0 else 0,
+                    percent=min(percent, 99),  # Don't show 100% until complete
                     speed_mbps=speed_mbps,
                     eta_seconds=eta,
                     status="downloading",
                 )
 
+            # Wait for completion
+            await download_task
+
+            elapsed = time.time() - start_time
+            avg_speed = (total_size / (1024 * 1024)) / elapsed if elapsed > 0 else 0
+
             yield DownloadProgress(
                 model_id=repo_id,
-                filename="",
+                filename=f"Complete! Avg: {avg_speed:.1f} MB/s",
                 downloaded_bytes=total_size,
                 total_bytes=total_size,
                 percent=100,
-                speed_mbps=0,
+                speed_mbps=avg_speed,
                 eta_seconds=0,
                 status="completed",
             )
@@ -375,6 +399,7 @@ class ModelManager:
     def download_model_sync(self, repo_id: str, callback=None) -> Path:
         """
         Synchronous model download (for simpler use cases).
+        Uses hf_transfer for maximum speed.
 
         Args:
             repo_id: HuggingFace repository ID
@@ -383,12 +408,18 @@ class ModelManager:
         Returns:
             Path to downloaded model
         """
+        import os
+
+        # Enable hf_transfer
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
         local_dir = self.models_path / repo_id.replace("/", "--")
 
         snapshot_download(
             repo_id=repo_id,
             local_dir=local_dir,
             local_dir_use_symlinks=False,
+            resume_download=True,
         )
 
         return local_dir
