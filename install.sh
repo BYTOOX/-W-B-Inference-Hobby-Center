@@ -183,6 +183,20 @@ log_info "Installing project dependencies..."
 pip install -r "${SCRIPT_DIR}/requirements.txt"
 
 #-------------------------------------------------------------------------------
+# Install llama-cpp-python with ROCm
+#-------------------------------------------------------------------------------
+echo ""
+log_info "Installing llama-cpp-python..."
+
+if check_command rocm-smi; then
+    log_info "Installing llama-cpp-python with ROCm/HIP support..."
+    CMAKE_ARGS="-DGGML_HIPBLAS=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
+else
+    log_warn "ROCm not detected. Installing CPU-only llama-cpp-python..."
+    pip install llama-cpp-python
+fi
+
+#-------------------------------------------------------------------------------
 # Environment File
 #-------------------------------------------------------------------------------
 echo ""
@@ -240,15 +254,25 @@ cat > "${SCRIPT_DIR}/run.sh" << 'EOF'
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Check if venv exists
+if [[ ! -f "${SCRIPT_DIR}/venv/bin/activate" ]]; then
+    echo "Error: Virtual environment not found. Run install.sh first."
+    exit 1
+fi
+
 source "${SCRIPT_DIR}/venv/bin/activate"
 
 # Load environment
-set -a
-source "${SCRIPT_DIR}/.env"
-set +a
+if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+    set -a
+    source "${SCRIPT_DIR}/.env"
+    set +a
+fi
 
 # Colors
 CYAN='\033[0;36m'
+GREEN='\033[0;32m'
 NC='\033[0m'
 
 echo -e "${CYAN}"
@@ -257,39 +281,18 @@ echo "║                  RyzenAI-LocalLab                             ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Check what to run
-case "${1:-all}" in
-    api)
-        echo "Starting API server..."
-        uvicorn backend.main:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8000} --reload
-        ;;
-    ui)
-        echo "Starting Streamlit UI..."
-        streamlit run ui/app.py --server.port ${UI_PORT:-8501} --server.address ${API_HOST:-0.0.0.0}
-        ;;
-    all|*)
-        echo "Starting API server and Streamlit UI..."
-        echo "API: http://localhost:${API_PORT:-8000}"
-        echo "UI:  http://localhost:${UI_PORT:-8501}"
-        echo ""
-        
-        # Start API in background
-        uvicorn backend.main:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8000} &
-        API_PID=$!
-        
-        # Wait a bit for API to start
-        sleep 2
-        
-        # Start Streamlit
-        streamlit run ui/app.py --server.port ${UI_PORT:-8501} --server.address ${API_HOST:-0.0.0.0} &
-        UI_PID=$!
-        
-        # Handle shutdown
-        trap "kill $API_PID $UI_PID 2>/dev/null; exit" SIGINT SIGTERM
-        
-        wait
-        ;;
-esac
+echo -e "${GREEN}Starting server...${NC}"
+echo ""
+echo "  🌐 Web UI:  http://localhost:${API_PORT:-8000}"
+echo "  📚 API Docs: http://localhost:${API_PORT:-8000}/docs"
+echo "  🔌 OpenAI API: http://localhost:${API_PORT:-8000}/v1"
+echo ""
+
+# Run uvicorn
+uvicorn backend.main:app \
+    --host ${API_HOST:-0.0.0.0} \
+    --port ${API_PORT:-8000} \
+    --reload
 EOF
 
 chmod +x "${SCRIPT_DIR}/run.sh"

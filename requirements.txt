@@ -14,6 +14,11 @@ huggingface_hub>=0.26.0
 safetensors>=0.4.5
 tokenizers>=0.20.0
 
+# AI/ML - Llama.cpp (best for AMD Ryzen AI MAX+)
+# Note: For ROCm support, install with:
+# CMAKE_ARGS="-DGGML_HIPBLAS=on" pip install llama-cpp-python
+llama-cpp-python>=0.3.0
+
 # Database & Auth
 sqlalchemy>=2.0.0
 aiosqlite>=0.20.0
