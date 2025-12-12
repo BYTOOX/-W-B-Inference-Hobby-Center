@@ -2,6 +2,7 @@
 RyzenAI-LocalLab - Ollama Backend Service
 
 Integrates with Ollama for fast local inference.
+GPU-only mode via Docker ROCm.
 """
 
 import httpx
@@ -9,9 +10,6 @@ from dataclasses import dataclass
 from typing import AsyncGenerator, Optional
 
 from backend.config import settings
-
-
-OLLAMA_BASE_URL = "http://localhost:11434"
 
 
 @dataclass
@@ -27,15 +25,17 @@ class OllamaEngine:
     """
     Inference engine using Ollama API.
     
+    GPU-only mode via Docker container with ROCm support.
+    
     Ollama handles:
     - Model downloading via `ollama pull`
     - Quantization and optimization
     - Memory management
-    - GPU acceleration (including AMD ROCm)
+    - GPU acceleration (AMD ROCm)
     """
     
-    def __init__(self, base_url: str = OLLAMA_BASE_URL):
-        self.base_url = base_url
+    def __init__(self, base_url: str = None):
+        self.base_url = base_url or settings.ollama_host
         self.current_model: Optional[str] = None
     
     async def is_available(self) -> bool:

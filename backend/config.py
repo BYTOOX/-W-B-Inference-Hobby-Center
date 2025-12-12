@@ -85,6 +85,18 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Ollama Configuration (GPU-only via Docker)
+    # ==========================================================================
+    ollama_host: str = Field(
+        default="http://localhost:11434",
+        description="Ollama API URL (use http://ollama:11434 in Docker)",
+    )
+    ollama_only: bool = Field(
+        default=True,
+        description="Only use Ollama for inference (GPU-accelerated Docker)",
+    )
+
+    # ==========================================================================
     # Validators
     # ==========================================================================
     @field_validator("models_path", "data_path", mode="before")
