@@ -14,10 +14,12 @@ services:
       - /dev/dri:/dev/dri
     environment:
       - OLLAMA_HOST=0.0.0.0
-      # GFX1151 = Radeon 8060S (Strix Point)
-      - HSA_OVERRIDE_GFX_VERSION=11.0.1
+      # GFX1151 = Radeon 8060S (Strix Point) - Try native ID
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
       - ROCR_VISIBLE_DEVICES=0
       - HIP_VISIBLE_DEVICES=0
+      # Optimize for unified memory
+      - HSA_ENABLE_SDMA=0
     group_add:
       - video
 
