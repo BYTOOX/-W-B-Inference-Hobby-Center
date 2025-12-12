@@ -7,16 +7,12 @@ Endpoints for model management: listing, downloading, and deletion.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.auth import get_current_active_user
 from backend.database import User
-from backend.services.model_manager import (
-    CompatibilityStatus,
-    ModelFormat,
-    model_manager,
-)
+from backend.services.model_manager import model_manager
+from backend.services.download_manager import download_manager
 
 router = APIRouter(prefix="/api/models", tags=["Models"])
 
@@ -52,6 +48,19 @@ class StorageStatsResponse(BaseModel):
     disk_total_gb: float
     disk_used_gb: float
     disk_free_gb: float
+
+
+class DownloadStatusResponse(BaseModel):
+    """Download status response."""
+
+    repo_id: str
+    total_bytes: int
+    current_bytes: int
+    percent: float
+    speed_mbps: float
+    eta_seconds: int
+    status: str
+    error: Optional[str] = None
 
 
 # =============================================================================
@@ -120,42 +129,47 @@ async def get_model_info(repo_id: str, current_user: User = Depends(get_current_
     )
 
 
+# =============================================================================
+# Download Management with Persistent Tracking
+# =============================================================================
+@router.get("/downloads")
+async def get_active_downloads(current_user: User = Depends(get_current_active_user)):
+    """Get all active downloads (survives page refresh)."""
+    return download_manager.get_active_downloads()
+
+
+@router.get("/downloads/{repo_id:path}")
+async def get_download_status(repo_id: str, current_user: User = Depends(get_current_active_user)):
+    """Get status of a specific download."""
+    status = download_manager.get_download(repo_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="No active download for this model")
+    return status
+
+
 @router.post("/download")
-async def download_model(request: DownloadRequest, current_user: User = Depends(get_current_active_user)):
+async def start_download(request: DownloadRequest, current_user: User = Depends(get_current_active_user)):
     """
-    Download a model from HuggingFace.
-
-    Returns a streaming response with progress updates.
+    Start a model download.
+    
+    Downloads run in background and can be tracked via GET /downloads.
+    Progress persists across page refreshes.
     """
-
-    async def generate():
-        import json
-
-        async for progress in model_manager.download_model(request.repo_id):
-            yield f"data: {json.dumps(progress.__dict__)}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-    )
+    result = await download_manager.start_download(request.repo_id)
+    
+    if result.get("error"):
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    return result
 
 
-@router.post("/download-sync")
-async def download_model_sync(request: DownloadRequest, current_user: User = Depends(get_current_active_user)):
-    """
-    Download a model from HuggingFace (synchronous, blocking).
-
-    Returns the path when complete.
-    """
-    try:
-        path = model_manager.download_model_sync(request.repo_id)
-        return {"path": str(path), "status": "completed"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+@router.delete("/downloads/{repo_id:path}")
+async def cancel_download(repo_id: str, current_user: User = Depends(get_current_active_user)):
+    """Cancel an active download."""
+    success = download_manager.cancel_download(repo_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="No active download to cancel")
+    return {"message": "Download cancelled", "repo_id": repo_id}
 
 
 @router.delete("/{model_id:path}")
@@ -179,3 +193,4 @@ async def get_storage_stats(current_user: User = Depends(get_current_active_user
     """Get storage statistics for the models directory."""
     stats = model_manager.get_storage_stats()
     return StorageStatsResponse(**stats)
+
