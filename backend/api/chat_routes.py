@@ -2,6 +2,7 @@
 RyzenAI-LocalLab Chat Routes
 
 Endpoints for chat sessions and message handling.
+Ollama-only mode - no PyTorch required.
 """
 
 from datetime import datetime
@@ -15,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.auth import get_current_active_user
+from backend.config import settings
 from backend.database import ChatMessage, ChatSession, User, get_db
-from backend.services.inference_engine import GenerationParams, inference_engine
+from backend.services.ollama_engine import ollama_engine
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -33,9 +35,7 @@ class ChatMessageCreate(BaseModel):
     # Generation parameters
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
-    top_k: int = Field(default=50, ge=1, le=200)
     max_tokens: int = Field(default=2048, ge=1, le=32768)
-    repetition_penalty: float = Field(default=1.1, ge=1.0, le=2.0)
 
 
 class ChatMessageResponse(BaseModel):
@@ -84,7 +84,6 @@ class ModelLoadRequest(BaseModel):
     """Request to load a model."""
 
     model_path: str
-    quantization: Optional[str] = Field(default=None, description="'4bit', '8bit', or None")
 
 
 class EngineStatusResponse(BaseModel):
@@ -92,32 +91,34 @@ class EngineStatusResponse(BaseModel):
 
     loaded: bool
     device: str
-    model: Optional[dict] = None
+    model: Optional[str] = None
 
 
 # =============================================================================
-# Engine Routes
+# Engine Routes (Ollama-based)
 # =============================================================================
 @router.get("/engine/status", response_model=EngineStatusResponse)
 async def get_engine_status(current_user: User = Depends(get_current_active_user)):
     """Get the current inference engine status."""
-    return inference_engine.get_status()
+    available = await ollama_engine.is_available()
+    return EngineStatusResponse(
+        loaded=ollama_engine.current_model is not None,
+        device="gpu" if available else "unavailable",
+        model=ollama_engine.current_model,
+    )
 
 
 @router.post("/engine/load")
 async def load_model(request: ModelLoadRequest, current_user: User = Depends(get_current_active_user)):
-    """Load a model for inference."""
+    """Load an Ollama model for inference."""
     try:
-        info = await inference_engine.load_model(
-            model_path=request.model_path,
-            quantization=request.quantization,
-        )
+        result = await ollama_engine.load_model(request.model_path)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=500, detail=result.get("error"))
         return {
             "status": "loaded",
-            "model_id": info.model_id,
-            "device": info.device,
-            "dtype": info.dtype,
-            "memory_gb": round(info.memory_used_gb, 2),
+            "model_id": request.model_path,
+            "device": "gpu",
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -126,7 +127,7 @@ async def load_model(request: ModelLoadRequest, current_user: User = Depends(get
 @router.post("/engine/unload")
 async def unload_model(current_user: User = Depends(get_current_active_user)):
     """Unload the current model."""
-    await inference_engine.unload_model()
+    ollama_engine.current_model = None
     return {"status": "unloaded"}
 
 
@@ -251,7 +252,7 @@ async def delete_session(
 
 
 # =============================================================================
-# Message Routes
+# Message Routes (Ollama streaming)
 # =============================================================================
 @router.post("/send")
 async def send_message(
@@ -260,13 +261,13 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Send a message and get a streaming response.
+    Send a message and get a streaming response via Ollama.
     """
     # Check if model is loaded
-    if not inference_engine.is_loaded():
+    if not ollama_engine.current_model:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No model loaded. Load a model first.",
+            detail="No model loaded. Load a model first via Models page.",
         )
 
     # Get or create session
@@ -285,12 +286,11 @@ async def send_message(
         session = ChatSession(
             user_id=current_user.id,
             title=message.content[:50] + "..." if len(message.content) > 50 else message.content,
-            model_name=inference_engine.loaded_model_info.model_id if inference_engine.loaded_model_info else None,
+            model_name=ollama_engine.current_model,
         )
         db.add(session)
         await db.commit()
         await db.refresh(session)
-        # Reload with messages
         result = await db.execute(
             select(ChatSession).where(ChatSession.id == session.id).options(selectinload(ChatSession.messages))
         )
@@ -305,49 +305,48 @@ async def send_message(
     history = [{"role": m.role, "content": m.content} for m in session.messages]
     history.append({"role": "user", "content": message.content})
 
-    # Generation parameters
-    params = GenerationParams(
-        max_new_tokens=message.max_tokens,
-        temperature=message.temperature,
-        top_p=message.top_p,
-        top_k=message.top_k,
-        repetition_penalty=message.repetition_penalty,
-    )
-
     async def generate():
         import json
 
         full_response = ""
         final_stats = None
 
-        async for token, stats in inference_engine.generate_stream(
+        async for chunk in ollama_engine.generate_stream(
+            model=ollama_engine.current_model,
             messages=history,
-            params=params,
-            system_prompt=session.system_prompt,
+            temperature=message.temperature,
+            top_p=message.top_p,
+            max_tokens=message.max_tokens,
         ):
-            full_response += token
-            if stats:
-                final_stats = stats
-
-            # Send token
-            yield f"data: {json.dumps({'token': token, 'done': stats is not None})}\n\n"
+            if chunk.get("error"):
+                yield f"data: {json.dumps({'error': chunk['error']})}\n\n"
+                return
+            
+            if chunk.get("content"):
+                full_response += chunk["content"]
+                yield f"data: {json.dumps({'token': chunk['content']})}\n\n"
+            
+            if chunk.get("done"):
+                final_stats = chunk
 
         # Save assistant message
         if full_response:
-            async with db.begin():
-                assistant_message = ChatMessage(
-                    session_id=session.id,
-                    role="assistant",
-                    content=full_response,
-                    tokens_prompt=final_stats.prompt_tokens if final_stats else None,
-                    tokens_completion=final_stats.completion_tokens if final_stats else None,
-                    generation_time=final_stats.generation_time if final_stats else None,
-                )
-                db.add(assistant_message)
+            assistant_message = ChatMessage(
+                session_id=session.id,
+                role="assistant",
+                content=full_response,
+                tokens_prompt=final_stats.get("prompt_eval_count") if final_stats else None,
+                tokens_completion=final_stats.get("eval_count") if final_stats else None,
+            )
+            db.add(assistant_message)
+            await db.commit()
 
             # Send final stats
             if final_stats:
-                yield f"data: {json.dumps({'stats': final_stats.__dict__})}\n\n"
+                eval_duration = final_stats.get("eval_duration", 1)
+                eval_count = final_stats.get("eval_count", 0)
+                tps = eval_count / (eval_duration / 1e9) if eval_duration > 0 else 0
+                yield f"data: {json.dumps({'stats': {'tokens_per_second': tps, 'total_tokens': eval_count}})}\n\n"
 
     return StreamingResponse(
         generate(),
