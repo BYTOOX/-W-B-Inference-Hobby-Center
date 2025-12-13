@@ -25,5 +25,7 @@ services:
       - FIRST_ADMIN_PASSWORD=${ADMIN_PASS:-changeme}
       # Point to native Windows Ollama instance
       - OLLAMA_HOST=http://host.docker.internal:11434
+      # Host path to models dir (for GGUF import - must match your Windows path)
+      - HOST_MODELS_PATH=${HOST_MODELS_PATH:-}
       - OLLAMA_ONLY=true
       - LOG_LEVEL=INFO

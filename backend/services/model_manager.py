@@ -732,8 +732,17 @@ class ModelManager:
         
         yield {"status": "importing", "message": f"📦 Creating Ollama model '{model_name}'...", "progress": 0.1}
         
-        # Create Modelfile content - use absolute path
-        modelfile_content = f'FROM "{gguf_path}"\n'
+        # Convert container path to host path for Ollama
+        # Container: /srv/models/gguf/file.gguf -> Host: C:/path/to/models/gguf/file.gguf
+        str_path = str(gguf_path)
+        if settings.host_models_path and str_path.startswith(str(settings.models_path)):
+            # Replace container models path with host models path
+            relative_path = str_path[len(str(settings.models_path)):]
+            host_path = settings.host_models_path.rstrip("/\\") + relative_path.replace("\\", "/")
+            modelfile_content = f'FROM "{host_path}"\n'
+        else:
+            # No host path configured, try using container path (might work on Linux)
+            modelfile_content = f'FROM "{gguf_path}"\n'
         
         yield {"status": "importing", "message": f"📦 Importing to Ollama via API...", "progress": 0.3}
         

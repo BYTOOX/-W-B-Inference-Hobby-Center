@@ -95,6 +95,10 @@ class Settings(BaseSettings):
         default=True,
         description="Only use Ollama for inference (GPU-accelerated Docker)",
     )
+    host_models_path: str = Field(
+        default="",
+        description="Host machine path to models dir (for Ollama GGUF import on Windows)",
+    )
 
     # ==========================================================================
     # Validators
