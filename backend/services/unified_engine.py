@@ -65,6 +65,7 @@ class UnifiedEngine:
     def __init__(self):
         self.state = ModelState()
         self._loading_lock = asyncio.Lock()
+        self._gguf_load_path: str = ""  # Full path for GGUF loading
         
         # Lazy imports to avoid circular dependencies
         self._ollama_engine = None
@@ -102,7 +103,7 @@ class UnifiedEngine:
         Supported formats:
             ollama:qwen3:8b -> (OLLAMA, "qwen3:8b")
             hf:mistralai/Devstral -> (HUGGINGFACE, "mistralai/Devstral")
-            gguf:/path/to/model.gguf -> (LLAMA_CPP, "/path/to/model.gguf")
+            gguf:/path/to/model.gguf -> (LLAMA_CPP, "model-name")
             
         Legacy (no prefix):
             If contains "/" -> assume HuggingFace
@@ -113,7 +114,13 @@ class UnifiedEngine:
         elif model_id.startswith("hf:"):
             return Backend.HUGGINGFACE, model_id[3:]
         elif model_id.startswith("gguf:"):
-            return Backend.LLAMA_CPP, model_id[5:]
+            # Extract filename without extension for display
+            from pathlib import Path
+            path = model_id[5:]
+            filename = Path(path).stem  # Gets filename without .gguf extension
+            # Store full path in a separate attribute for loading
+            self._gguf_load_path = path
+            return Backend.LLAMA_CPP, filename
         else:
             # Legacy detection
             if "/" in model_id and not model_id.startswith("/"):
@@ -407,6 +414,9 @@ class UnifiedEngine:
     
     async def _load_llama_cpp(self, model_path: str) -> AsyncGenerator[LoadProgress, None]:
         """Load a llama.cpp GGUF model."""
+        # Use the stored full path for loading (model_path here is just display name)
+        actual_path = getattr(self, '_gguf_load_path', model_path)
+        
         yield LoadProgress(
             status="loading",
             message=f"📦 Loading GGUF model...",
@@ -425,7 +435,7 @@ class UnifiedEngine:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
-            lambda: self.llama_engine.load_model(model_path)
+            lambda: self.llama_engine.load_model(actual_path)
         )
         
         yield LoadProgress(
