@@ -1114,16 +1114,18 @@
                 const response = await apiRequest('/api/models/');
                 const models = await response.json();
 
-                // Update model selector
-                const selector = document.getElementById('model-selector');
-                selector.innerHTML = '<option value="">Select a model...</option>';
-
-                models.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.path;
-                    option.textContent = `${model.name} (${model.size_gb.toFixed(1)} GB)`;
-                    selector.appendChild(option);
-                });
+                // Update HuggingFace optgroup only (not the whole selector!)
+                const hfGroup = document.getElementById('hf-model-group');
+                if (hfGroup) {
+                    hfGroup.innerHTML = '';
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = `hf:${model.path}`;
+                        option.textContent = `${model.name} (${model.size_gb.toFixed(1)} GB)`;
+                        hfGroup.appendChild(option);
+                    });
+                    console.log('Added', models.length, 'HuggingFace models to selector');
+                }
 
                 // Update models list
                 const modelsList = document.getElementById('models-list');
@@ -1149,7 +1151,7 @@
                                     </span>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadModel('${model.path}')">
+                                    <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadModelUnified('hf:${model.path}')">
                                         <i class="bi bi-lightning-charge me-1"></i>Load
                                     </button>
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteModel('${model.id}')">
