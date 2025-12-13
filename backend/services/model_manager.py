@@ -80,9 +80,14 @@ class ModelManager:
     """
 
     def __init__(self, models_path: Optional[Path] = None):
+        import os
         self.models_path = models_path or settings.models_path
         self.models_path.mkdir(parents=True, exist_ok=True)
-        self.hf_api = HfApi()
+        
+        # Initialize HfApi with token if available
+        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        self.hf_api = HfApi(token=hf_token)
+        self.hf_token = hf_token
         self._download_progress: dict[str, DownloadProgress] = {}
 
     # =========================================================================
@@ -608,6 +613,7 @@ class ModelManager:
                         local_dir=gguf_dir,
                         force_download=False,
                         tqdm_class=ProgressCallback,
+                        token=self.hf_token,
                     )
                     result_holder["path"] = path
                 except Exception as e:

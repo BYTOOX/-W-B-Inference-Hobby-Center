@@ -27,5 +27,7 @@ services:
       - OLLAMA_HOST=http://host.docker.internal:11434
       # Host path to models dir (for GGUF import - must match your Windows path)
       - HOST_MODELS_PATH=${HOST_MODELS_PATH:-}
+      # HuggingFace token for downloading gated models (optional)
+      - HF_TOKEN=${HF_TOKEN:-}
       - OLLAMA_ONLY=true
       - LOG_LEVEL=INFO
