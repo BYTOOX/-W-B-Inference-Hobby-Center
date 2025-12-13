@@ -112,7 +112,7 @@ app.add_middleware(
 # =============================================================================
 # Include Routers
 # =============================================================================
-from backend.api import auth_routes, chat_routes, model_routes, openai_routes, system_routes, ollama_routes
+from backend.api import auth_routes, chat_routes, model_routes, openai_routes, system_routes, ollama_routes, unified_routes
 
 app.include_router(auth_routes.router)
 app.include_router(model_routes.router)
@@ -120,6 +120,7 @@ app.include_router(chat_routes.router)
 app.include_router(openai_routes.router)
 app.include_router(system_routes.router)
 app.include_router(ollama_routes.router)
+app.include_router(unified_routes.router)
 
 
 # =============================================================================

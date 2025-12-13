@@ -459,6 +459,35 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
+
+        /* ===== Model Loading Card Styles ===== */
+        .model-loading-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .model-loading-card .progress {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+        }
+
+        #current-model-badge {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)) !important;
+        }
+
+        #backend-badge.ollama {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+        }
+
+        #backend-badge.huggingface {
+            background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+        }
+
+        #backend-badge.llama_cpp {
+            background: linear-gradient(135deg, #10b981, #059669) !important;
+        }
     </style>
 </head>
 
@@ -518,23 +547,63 @@
                 <!-- Chat Area -->
                 <div class="col-lg-9">
                     <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-chat-dots me-2"></i>Chat
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-chat-dots"></i>
+                                    <span>Chat</span>
+                                    <!-- Current Model Badge -->
+                                    <span class="badge bg-secondary d-none" id="current-model-badge">
+                                        <i class="bi bi-cpu me-1"></i>
+                                        <span id="current-model-name">No model</span>
+                                    </span>
+                                    <!-- Backend Indicator -->
+                                    <span class="badge d-none" id="backend-badge">
+                                        <span id="backend-icon"></span>
+                                        <span id="backend-name"></span>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <select class="form-select form-select-sm" id="model-selector"
+                                        style="width: 280px;">
+                                        <option value="">Select a model...</option>
+                                        <optgroup label="🦙 Ollama Models" id="ollama-model-group">
+                                        </optgroup>
+                                        <optgroup label="🤗 HuggingFace Models" id="hf-model-group">
+                                        </optgroup>
+                                    </select>
+                                    <button class="btn btn-sm btn-gradient" id="load-model-btn">
+                                        <i class="bi bi-lightning-charge me-1"></i>Load
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger d-none" id="unload-model-btn"
+                                        title="Unload current model">
+                                        <i class="bi bi-eject"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <select class="form-select form-select-sm" id="model-selector" style="width: 250px;">
-                                    <option value="">Select a model...</option>
-                                </select>
-                                <button class="btn btn-sm btn-gradient" id="load-model-btn">
-                                    <i class="bi bi-lightning-charge me-1"></i>Load
-                                </button>
+                            <!-- Model Loading Progress -->
+                            <div id="model-loading-progress" class="mt-3 d-none">
+                                <div class="model-loading-card">
+                                    <div class="d-flex align-items-center gap-3 mb-2">
+                                        <div class="spinner-border spinner-border-sm text-info" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <span id="model-loading-message">Initializing...</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px;">
+                                        <div class="progress-bar progress-bar-animated" id="model-loading-bar"
+                                            style="width: 0%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="card-body chat-container" id="chat-messages">
-                            <div class="text-center text-muted py-5">
+                            <div class="text-center text-muted py-5" id="chat-placeholder">
                                 <i class="bi bi-robot display-1 mb-3 d-block" style="opacity: 0.3;"></i>
-                                <p>Load a model to start chatting</p>
+                                <p>Select and load a model to start chatting</p>
+                                <p class="small">Supports: <span class="badge bg-info">🦙 Ollama</span> <span
+                                        class="badge bg-warning text-dark">🤗 HuggingFace</span></p>
                             </div>
                         </div>
                         <div class="card-footer">
@@ -1128,14 +1197,17 @@
                 const models = await response.json();
 
                 const modelsList = document.getElementById('ollama-models-list');
-                const selector = document.getElementById('model-selector');
+                const ollamaGroup = document.getElementById('ollama-model-group');
 
-                // Add Ollama models to selector
+                // Clear existing options in the Ollama group
+                ollamaGroup.innerHTML = '';
+
+                // Add Ollama models to selector optgroup
                 models.forEach(model => {
                     const option = document.createElement('option');
                     option.value = `ollama:${model.name}`;
-                    option.textContent = `🦙 ${model.name} (${model.size_gb} GB)`;
-                    selector.appendChild(option);
+                    option.textContent = `${model.name} (${model.size_gb} GB)`;
+                    ollamaGroup.appendChild(option);
                 });
 
                 if (models.length === 0) {
@@ -1157,7 +1229,7 @@
                                     <span>${model.size_gb} GB</span>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadOllamaModel('${model.name}')">
+                                    <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadModelUnified('ollama:${model.name}')">
                                         <i class="bi bi-lightning-charge me-1"></i>Load
                                     </button>
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteOllamaModel('${model.name}')">
@@ -1190,6 +1262,183 @@
                 showToast(`Model loaded: ${modelName}`, 'success');
             } catch (error) {
                 showToast('Failed to load model: ' + error.message, 'danger');
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Unified Model Loading (One model at a time across all backends)
+        // ---------------------------------------------------------------------
+        async function loadModelUnified(modelId) {
+            const progressDiv = document.getElementById('model-loading-progress');
+            const progressBar = document.getElementById('model-loading-bar');
+            const progressMessage = document.getElementById('model-loading-message');
+            const loadBtn = document.getElementById('load-model-btn');
+            const unloadBtn = document.getElementById('unload-model-btn');
+            const modelBadge = document.getElementById('current-model-badge');
+            const modelNameEl = document.getElementById('current-model-name');
+            const backendBadge = document.getElementById('backend-badge');
+            const backendName = document.getElementById('backend-name');
+            const backendIcon = document.getElementById('backend-icon');
+            const chatPlaceholder = document.getElementById('chat-placeholder');
+
+            // Show progress, disable load button
+            progressDiv.classList.remove('d-none');
+            loadBtn.disabled = true;
+            progressMessage.textContent = 'Initializing...';
+            progressBar.style.width = '0%';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/engine/load`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ model_id: modelId })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let lastStatus = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            // Update progress UI
+                            progressMessage.textContent = data.message || 'Loading...';
+                            progressBar.style.width = `${Math.round(data.progress * 100)}%`;
+                            lastStatus = data.status;
+
+                            // Handle success
+                            if (data.status === 'success') {
+                                progressDiv.classList.add('d-none');
+                                loadBtn.disabled = false;
+                                unloadBtn.classList.remove('d-none');
+
+                                // Update model badge
+                                const modelName = modelId.includes(':') ? modelId.split(':').slice(1).join(':') : modelId;
+                                modelBadge.classList.remove('d-none');
+                                modelNameEl.textContent = modelName;
+
+                                // Update backend badge
+                                const backend = modelId.startsWith('ollama:') ? 'ollama' :
+                                    modelId.startsWith('hf:') ? 'huggingface' :
+                                        modelId.startsWith('gguf:') ? 'llama_cpp' : 'ollama';
+                                backendBadge.className = `badge ${backend}`;
+                                backendBadge.classList.remove('d-none');
+                                backendIcon.textContent = backend === 'ollama' ? '🦙' : backend === 'huggingface' ? '🤗' : '📦';
+                                backendName.textContent = backend === 'ollama' ? 'Ollama' : backend === 'huggingface' ? 'HuggingFace' : 'GGUF';
+
+                                // Enable chat
+                                modelLoaded = true;
+                                currentOllamaModel = backend === 'ollama' ? modelName : null;
+                                document.getElementById('chat-input').disabled = false;
+                                document.getElementById('send-btn').disabled = false;
+
+                                // Hide placeholder
+                                if (chatPlaceholder) chatPlaceholder.classList.add('d-none');
+
+                                showToast(data.message, 'success');
+                                return;
+                            }
+
+                            // Handle error
+                            if (data.status === 'error') {
+                                throw new Error(data.message);
+                            }
+
+                        } catch (parseError) {
+                            console.warn('Parse error:', parseError);
+                        }
+                    }
+                }
+
+                // If we get here without success, something went wrong
+                if (lastStatus !== 'success') {
+                    throw new Error('Loading completed without success status');
+                }
+
+            } catch (error) {
+                progressDiv.classList.add('d-none');
+                loadBtn.disabled = false;
+                showToast('Failed to load model: ' + error.message, 'danger');
+            }
+        }
+
+        async function unloadModelUnified() {
+            const unloadBtn = document.getElementById('unload-model-btn');
+            const modelBadge = document.getElementById('current-model-badge');
+            const backendBadge = document.getElementById('backend-badge');
+            const progressDiv = document.getElementById('model-loading-progress');
+            const progressMessage = document.getElementById('model-loading-message');
+            const progressBar = document.getElementById('model-loading-bar');
+            const chatPlaceholder = document.getElementById('chat-placeholder');
+
+            progressDiv.classList.remove('d-none');
+            unloadBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/engine/unload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            progressMessage.textContent = data.message || 'Unloading...';
+                            progressBar.style.width = `${Math.round(data.progress * 100)}%`;
+
+                            if (data.status === 'success') {
+                                progressDiv.classList.add('d-none');
+                                unloadBtn.classList.add('d-none');
+                                unloadBtn.disabled = false;
+
+                                // Hide badges
+                                modelBadge.classList.add('d-none');
+                                backendBadge.classList.add('d-none');
+
+                                // Disable chat
+                                modelLoaded = false;
+                                currentOllamaModel = null;
+                                document.getElementById('chat-input').disabled = true;
+                                document.getElementById('send-btn').disabled = true;
+
+                                // Show placeholder
+                                if (chatPlaceholder) chatPlaceholder.classList.remove('d-none');
+
+                                showToast(data.message, 'success');
+                                return;
+                            }
+                        } catch (e) {
+                            console.warn('Parse error:', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                progressDiv.classList.add('d-none');
+                unloadBtn.disabled = false;
+                showToast('Failed to unload: ' + error.message, 'danger');
             }
         }
 
@@ -1784,13 +2033,22 @@
                 }
             });
 
-            // Model load button
+            // Model load button - Uses unified engine (one model at a time)
             document.getElementById('load-model-btn').addEventListener('click', () => {
-                const path = document.getElementById('model-selector').value;
-                if (path) loadModel(path);
+                const modelId = document.getElementById('model-selector').value;
+                if (modelId) {
+                    loadModelUnified(modelId);
+                } else {
+                    showToast('Please select a model first', 'warning');
+                }
             });
 
-            // Check model button
+            // Model unload button
+            document.getElementById('unload-model-btn').addEventListener('click', () => {
+                unloadModelUnified();
+            });
+
+            // Check model button (HuggingFace)
             document.getElementById('check-model-btn').addEventListener('click', checkModel);
 
             // Download form (HuggingFace)
@@ -1805,16 +2063,6 @@
                 e.preventDefault();
                 const modelName = document.getElementById('ollama-model-name').value.trim();
                 if (modelName) pullOllamaModel(modelName);
-            });
-
-            // Model load button (supports both HF and Ollama)
-            document.getElementById('load-model-btn').addEventListener('click', () => {
-                const path = document.getElementById('model-selector').value;
-                if (path.startsWith('ollama:')) {
-                    loadOllamaModel(path.replace('ollama:', ''));
-                } else if (path) {
-                    loadModel(path);
-                }
             });
 
             // Parameter sliders
