@@ -599,9 +599,14 @@ class ModelManager:
             while not download_task.done():
                 await asyncio.sleep(1)
                 
+                # Scan entire gguf_dir for download activity
                 current_size = 0
-                if local_path.exists():
-                    current_size = local_path.stat().st_size
+                for f in gguf_dir.rglob("*"):
+                    if f.is_file():
+                        try:
+                            current_size += f.stat().st_size
+                        except OSError:
+                            pass
                 
                 elapsed = time.time() - start_time
                 speed_bps = current_size / elapsed if elapsed > 0 else 0
