@@ -465,20 +465,45 @@ class ModelManager:
         Returns:
             List of GGUF files with name, size, and quantization info
         """
+        import re
+        
         try:
             model_info = self.hf_api.model_info(repo_id, files_metadata=True)
             gguf_files = []
             
             for f in model_info.siblings:
                 if f.rfilename.endswith(".gguf"):
+                    name = f.rfilename
+                    
+                    # Skip split files (multi-part models like -00001-of-00002)
+                    if re.search(r'-\d{5}-of-\d{5}', name):
+                        continue
+                    
                     size_gb = f.size / (1024**3) if f.size else 0
                     
-                    # Parse quantization from filename
-                    name = f.rfilename
+                    # Parse quantization from filename (comprehensive list)
                     quant = "unknown"
-                    for q in ["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", 
-                              "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0", "IQ4_XS", "IQ3_M"]:
-                        if q.lower() in name.lower() or q in name:
+                    quant_patterns = [
+                        # Standard K-quants
+                        "Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", 
+                        "Q4_K_S", "Q4_K_M", "Q4_K_L",
+                        "Q5_K_S", "Q5_K_M", "Q5_K_L",
+                        "Q6_K", "Q8_K",
+                        # Legacy quants
+                        "Q4_0", "Q4_1", "Q5_0", "Q5_1", "Q8_0",
+                        # IQuants (newer)
+                        "IQ1_S", "IQ1_M", "IQ2_S", "IQ2_M", "IQ2_XS", "IQ2_XXS",
+                        "IQ3_S", "IQ3_M", "IQ3_XS", "IQ3_XXS",
+                        "IQ4_XS", "IQ4_NL",
+                        # FP formats
+                        "F16", "F32", "BF16",
+                    ]
+                    
+                    for q in quant_patterns:
+                        # Case-insensitive match with word boundaries
+                        if re.search(rf'[_\-\.]{q}[_\-\.]?', name, re.IGNORECASE) or \
+                           name.upper().endswith(f"-{q}.GGUF") or \
+                           f".{q}." in name.upper():
                             quant = q
                             break
                     
