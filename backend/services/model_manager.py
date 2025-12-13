@@ -707,7 +707,7 @@ class ModelManager:
     
     async def import_gguf_to_ollama(self, gguf_path: str, model_name: str = None) -> AsyncGenerator[dict, None]:
         """
-        Import a GGUF file into Ollama for GPU support.
+        Import a GGUF file into Ollama for GPU support using Ollama API.
         
         Args:
             gguf_path: Path to the GGUF file
@@ -716,10 +716,9 @@ class ModelManager:
         Yields:
             Progress updates during import
         """
-        import asyncio
-        import subprocess
-        import tempfile
+        import httpx
         from pathlib import Path
+        from backend.config import settings
         
         gguf_path = Path(gguf_path)
         if not gguf_path.exists():
@@ -728,54 +727,44 @@ class ModelManager:
         
         # Generate model name from filename if not provided
         if not model_name:
-            # Extract base name without quantization suffix for cleaner name
-            import re
             stem = gguf_path.stem  # e.g., "DeepSeek-R1-Distill-Llama-70B-Q4_K_M"
-            # Try to extract a cleaner name
             model_name = stem.lower().replace("_", "-")
         
         yield {"status": "importing", "message": f"📦 Creating Ollama model '{model_name}'...", "progress": 0.1}
         
-        # Create Modelfile
+        # Create Modelfile content - use absolute path
         modelfile_content = f'FROM "{gguf_path}"\n'
         
+        yield {"status": "importing", "message": f"📦 Importing to Ollama via API...", "progress": 0.3}
+        
         try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.Modelfile', delete=False) as f:
-                f.write(modelfile_content)
-                modelfile_path = f.name
-            
-            yield {"status": "importing", "message": f"📦 Importing to Ollama (this may take a while)...", "progress": 0.3}
-            
-            # Run ollama create
-            loop = asyncio.get_event_loop()
-            
-            def run_ollama_create():
-                result = subprocess.run(
-                    ["ollama", "create", model_name, "-f", modelfile_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=600,  # 10 minute timeout for large models
+            async with httpx.AsyncClient(timeout=600.0) as client:
+                # Use Ollama's /api/create endpoint
+                response = await client.post(
+                    f"{settings.ollama_host}/api/create",
+                    json={
+                        "name": model_name,
+                        "modelfile": modelfile_content,
+                        "stream": False,
+                    }
                 )
-                return result
-            
-            result = await loop.run_in_executor(None, run_ollama_create)
-            
-            # Clean up temp file
-            Path(modelfile_path).unlink(missing_ok=True)
-            
-            if result.returncode != 0:
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    yield {"status": "error", "message": f"❌ Ollama API error: {error_text}"}
+                    return
+                
                 yield {
-                    "status": "error", 
-                    "message": f"❌ Ollama import failed: {result.stderr or result.stdout}",
+                    "status": "completed", 
+                    "message": f"✅ Model '{model_name}' created in Ollama!", 
+                    "progress": 1.0, 
+                    "model_name": model_name
                 }
-                return
-            
-            yield {"status": "completed", "message": f"✅ Model '{model_name}' created in Ollama!", "progress": 1.0, "model_name": model_name}
-            
-        except subprocess.TimeoutExpired:
+                
+        except httpx.TimeoutException:
             yield {"status": "error", "message": "❌ Import timed out (model too large?)"}
-        except FileNotFoundError:
-            yield {"status": "error", "message": "❌ Ollama not found. Is it installed and in PATH?"}
+        except httpx.ConnectError:
+            yield {"status": "error", "message": "❌ Cannot connect to Ollama. Is it running?"}
         except Exception as e:
             yield {"status": "error", "message": f"❌ Import failed: {str(e)}"}
 
