@@ -101,6 +101,14 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # APIs
+    # ==========================================================================
+    hf_token: str | None = Field(
+        default=None,
+        description="HuggingFace API Token (optional, for gated models/higher limits)",
+    )
+
+    # ==========================================================================
     # Validators
     # ==========================================================================
     @field_validator("models_path", "data_path", mode="before")

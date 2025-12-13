@@ -85,7 +85,8 @@ class ModelManager:
         self.models_path.mkdir(parents=True, exist_ok=True)
         
         # Initialize HfApi with token if available
-        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        # Prefer settings.hf_token which loads from .env via Pydantic
+        hf_token = settings.hf_token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
         self.hf_api = HfApi(token=hf_token)
         self.hf_token = hf_token
         self._download_progress: dict[str, DownloadProgress] = {}

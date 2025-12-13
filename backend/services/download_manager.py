@@ -99,7 +99,9 @@ class DownloadManager:
     
     def __init__(self):
         self.active_downloads: dict[str, DownloadState] = {}
-        self.hf_api = HfApi()
+        # Use token from settings
+        self.hf_token = settings.hf_token
+        self.hf_api = HfApi(token=self.hf_token)
         self.models_path = Path(settings.models_path)
     
     def get_active_downloads(self) -> list[dict]:
@@ -157,6 +159,8 @@ class DownloadManager:
         # Build CLI command
         env = os.environ.copy()
         env["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        if self.hf_token:
+            env["HF_TOKEN"] = self.hf_token
         
         cmd = [
             "huggingface-cli", "download",
