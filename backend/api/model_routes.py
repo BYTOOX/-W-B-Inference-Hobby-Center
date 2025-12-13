@@ -272,3 +272,28 @@ async def delete_gguf(filename: str, current_user: User = Depends(get_current_ac
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+class GGUFImportRequest(BaseModel):
+    """Request to import GGUF to Ollama."""
+    gguf_path: str
+    model_name: str = None
+
+
+@router.post("/gguf/import")
+async def import_gguf_to_ollama(
+    request: GGUFImportRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Import a GGUF file into Ollama for GPU acceleration."""
+    
+    async def generate():
+        async for progress in model_manager.import_gguf_to_ollama(
+            request.gguf_path, 
+            request.model_name
+        ):
+            yield f"data: {json.dumps(progress)}\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream"
+    )

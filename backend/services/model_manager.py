@@ -704,6 +704,80 @@ class ModelManager:
             })
         
         return sorted(gguf_files, key=lambda x: x["filename"])
+    
+    async def import_gguf_to_ollama(self, gguf_path: str, model_name: str = None) -> AsyncGenerator[dict, None]:
+        """
+        Import a GGUF file into Ollama for GPU support.
+        
+        Args:
+            gguf_path: Path to the GGUF file
+            model_name: Optional custom name for the Ollama model
+            
+        Yields:
+            Progress updates during import
+        """
+        import asyncio
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        
+        gguf_path = Path(gguf_path)
+        if not gguf_path.exists():
+            yield {"status": "error", "message": f"GGUF file not found: {gguf_path}"}
+            return
+        
+        # Generate model name from filename if not provided
+        if not model_name:
+            # Extract base name without quantization suffix for cleaner name
+            import re
+            stem = gguf_path.stem  # e.g., "DeepSeek-R1-Distill-Llama-70B-Q4_K_M"
+            # Try to extract a cleaner name
+            model_name = stem.lower().replace("_", "-")
+        
+        yield {"status": "importing", "message": f"📦 Creating Ollama model '{model_name}'...", "progress": 0.1}
+        
+        # Create Modelfile
+        modelfile_content = f'FROM "{gguf_path}"\n'
+        
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.Modelfile', delete=False) as f:
+                f.write(modelfile_content)
+                modelfile_path = f.name
+            
+            yield {"status": "importing", "message": f"📦 Importing to Ollama (this may take a while)...", "progress": 0.3}
+            
+            # Run ollama create
+            loop = asyncio.get_event_loop()
+            
+            def run_ollama_create():
+                result = subprocess.run(
+                    ["ollama", "create", model_name, "-f", modelfile_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minute timeout for large models
+                )
+                return result
+            
+            result = await loop.run_in_executor(None, run_ollama_create)
+            
+            # Clean up temp file
+            Path(modelfile_path).unlink(missing_ok=True)
+            
+            if result.returncode != 0:
+                yield {
+                    "status": "error", 
+                    "message": f"❌ Ollama import failed: {result.stderr or result.stdout}",
+                }
+                return
+            
+            yield {"status": "completed", "message": f"✅ Model '{model_name}' created in Ollama!", "progress": 1.0, "model_name": model_name}
+            
+        except subprocess.TimeoutExpired:
+            yield {"status": "error", "message": "❌ Import timed out (model too large?)"}
+        except FileNotFoundError:
+            yield {"status": "error", "message": "❌ Ollama not found. Is it installed and in PATH?"}
+        except Exception as e:
+            yield {"status": "error", "message": f"❌ Import failed: {str(e)}"}
 
     # =========================================================================
     # Storage Stats
