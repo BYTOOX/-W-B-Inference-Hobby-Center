@@ -569,6 +569,8 @@
                                         <option value="">Select a model...</option>
                                         <optgroup label="🦙 Ollama Models" id="ollama-model-group">
                                         </optgroup>
+                                        <optgroup label="📦 GGUF Models" id="gguf-model-group">
+                                        </optgroup>
                                         <optgroup label="🤗 HuggingFace Models" id="hf-model-group">
                                         </optgroup>
                                     </select>
@@ -766,7 +768,90 @@
                 </div>
             </div>
 
-            <!-- HuggingFace Section (collapsed) -->
+            <!-- GGUF Models Section -->
+            <div class="accordion mb-4" id="gguf-accordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#gguf-collapse">
+                            <i class="bi bi-file-earmark-binary me-2"></i>GGUF Models (HuggingFace Quantized)
+                            <span class="badge bg-success ms-2">New!</span>
+                        </button>
+                    </h2>
+                    <div id="gguf-collapse" class="accordion-collapse collapse" data-bs-parent="#gguf-accordion">
+                        <div class="accordion-body">
+                            <p class="text-muted mb-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Search for GGUF models on HuggingFace and choose your preferred quantization.
+                            </p>
+                            <div class="row g-3 align-items-end mb-4">
+                                <div class="col-md-8">
+                                    <label class="form-label">HuggingFace GGUF Repository</label>
+                                    <input type="text" class="form-control" id="gguf-repo-input"
+                                        placeholder="bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF">
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-gradient w-100" id="gguf-search-btn">
+                                        <i class="bi bi-search me-1"></i>List Quantizations
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- GGUF Download Progress -->
+                            <div id="gguf-download-progress" class="mb-3 d-none">
+                                <div class="download-card">
+                                    <div class="download-header">
+                                        <div class="download-icon">
+                                            <i class="bi bi-file-earmark-binary"></i>
+                                        </div>
+                                        <div class="download-title">
+                                            <span class="download-model-name" id="gguf-download-name">GGUF File</span>
+                                            <span class="download-status-badge">
+                                                <i class="bi bi-arrow-down-circle"></i> Downloading
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="download-progress-container">
+                                        <div class="progress download-progress">
+                                            <div class="progress-bar progress-bar-animated" id="gguf-download-bar"
+                                                style="width: 0%"></div>
+                                        </div>
+                                        <div class="download-percent" id="gguf-download-percent">0%</div>
+                                    </div>
+                                    <div class="download-stats">
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="gguf-download-speed">-- MB/s</div>
+                                            <div class="download-stat-label">Speed</div>
+                                        </div>
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="gguf-download-eta">--:--</div>
+                                            <div class="download-stat-label">ETA</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- GGUF Files List -->
+                            <div id="gguf-files-list" class="row g-3">
+                                <div class="col-12 text-center text-muted py-3">
+                                    <i class="bi bi-search display-6 d-block mb-2" style="opacity: 0.3;"></i>
+                                    <p class="mb-0">Enter a GGUF repository and click "List Quantizations"</p>
+                                </div>
+                            </div>
+
+                            <!-- Local GGUF Models -->
+                            <h6 class="mt-4 mb-3"><i class="bi bi-hdd me-1"></i>Downloaded GGUF Models</h6>
+                            <div id="gguf-local-list" class="row g-3">
+                                <div class="col-12 text-center text-muted py-3">
+                                    <i class="bi bi-inbox display-6 d-block mb-2" style="opacity: 0.3;"></i>
+                                    <p class="mb-0">No local GGUF models</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="accordion mb-4" id="hf-accordion">
                 <div class="accordion-item">
                     <h2 class="accordion-header">
@@ -1269,6 +1354,210 @@
                 showToast(`Model loaded: ${modelName}`, 'success');
             } catch (error) {
                 showToast('Failed to load model: ' + error.message, 'danger');
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // GGUF Models (HuggingFace Quantized)
+        // ---------------------------------------------------------------------
+        async function searchGGUFRepo() {
+            const repoId = document.getElementById('gguf-repo-input').value.trim();
+            if (!repoId) {
+                showToast('Please enter a HuggingFace repository ID', 'warning');
+                return;
+            }
+
+            const filesList = document.getElementById('gguf-files-list');
+            filesList.innerHTML = `
+                <div class="col-12 text-center py-3">
+                    <div class="spinner-border text-info" role="status"></div>
+                    <p class="mt-2 mb-0">Searching ${repoId}...</p>
+                </div>
+            `;
+
+            try {
+                const response = await apiRequest('/api/models/gguf/list', {
+                    method: 'POST',
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                const data = await response.json();
+
+                if (data.files.length === 0) {
+                    filesList.innerHTML = `
+                        <div class="col-12 text-center text-muted py-3">
+                            <i class="bi bi-exclamation-circle display-6 d-block mb-2" style="opacity: 0.3;"></i>
+                            <p class="mb-0">No GGUF files found in this repository</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                filesList.innerHTML = data.files.map(file => `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="model-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0 text-truncate" title="${file.filename}" style="max-width: 150px;">
+                                    📦 ${file.filename.split('.')[0].slice(-15)}
+                                </h6>
+                                <span class="badge bg-success">${file.quantization}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+                                <span>${file.size_gb} GB</span>
+                            </div>
+                            <button class="btn btn-sm btn-gradient w-100" 
+                                onclick="downloadGGUF('${data.repo_id}', '${file.filename}')">
+                                <i class="bi bi-download me-1"></i>Download
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                showToast('Failed to search: ' + error.message, 'danger');
+                filesList.innerHTML = `
+                    <div class="col-12 text-center text-danger py-3">
+                        <i class="bi bi-x-circle display-6 d-block mb-2"></i>
+                        <p class="mb-0">Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function downloadGGUF(repoId, filename) {
+            const progressDiv = document.getElementById('gguf-download-progress');
+            const progressBar = document.getElementById('gguf-download-bar');
+            const percentEl = document.getElementById('gguf-download-percent');
+            const nameEl = document.getElementById('gguf-download-name');
+            const speedEl = document.getElementById('gguf-download-speed');
+            const etaEl = document.getElementById('gguf-download-eta');
+
+            progressDiv.classList.remove('d-none');
+            nameEl.textContent = filename;
+            progressBar.style.width = '0%';
+            percentEl.textContent = '0%';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/models/gguf/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ repo_id: repoId, filename: filename })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            progressBar.style.width = `${data.percent}%`;
+                            percentEl.textContent = `${Math.round(data.percent)}%`;
+                            speedEl.textContent = `${data.speed_mbps.toFixed(1)} MB/s`;
+
+                            if (data.eta_seconds > 0) {
+                                const mins = Math.floor(data.eta_seconds / 60);
+                                const secs = data.eta_seconds % 60;
+                                etaEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                            }
+
+                            if (data.status === 'completed') {
+                                progressDiv.classList.add('d-none');
+                                showToast(`✅ Downloaded ${filename}`, 'success');
+                                loadLocalGGUF();
+                                return;
+                            }
+
+                            if (data.status === 'error') {
+                                throw new Error(data.error);
+                            }
+                        } catch (e) {
+                            console.warn('Parse error:', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                progressDiv.classList.add('d-none');
+                showToast('Download failed: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadLocalGGUF() {
+            const listEl = document.getElementById('gguf-local-list');
+            const ggufGroup = document.getElementById('gguf-model-group');
+
+            try {
+                const response = await apiRequest('/api/models/gguf/local');
+                const data = await response.json();
+
+                // Update selector optgroup
+                if (ggufGroup) {
+                    ggufGroup.innerHTML = '';
+                    data.files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = `gguf:${file.path}`;
+                        option.textContent = `${file.filename} (${file.size_gb} GB)`;
+                        ggufGroup.appendChild(option);
+                    });
+                }
+
+                if (data.files.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="col-12 text-center text-muted py-3">
+                            <i class="bi bi-inbox display-6 d-block mb-2" style="opacity: 0.3;"></i>
+                            <p class="mb-0">No local GGUF models</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                listEl.innerHTML = data.files.map(file => `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="model-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0 text-truncate" style="max-width: 180px;">📦 ${file.filename}</h6>
+                                <span class="badge bg-info">GGUF</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+                                <span>${file.size_gb} GB</span>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-gradient flex-grow-1" onclick="loadModelUnified('gguf:${file.path}')">
+                                    <i class="bi bi-lightning-charge me-1"></i>Load
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteGGUF('${file.filename}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Error loading local GGUF:', error);
+            }
+        }
+
+        async function deleteGGUF(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+
+            try {
+                await apiRequest(`/api/models/gguf/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                showToast(`Deleted ${filename}`, 'success');
+                loadLocalGGUF();
+            } catch (error) {
+                showToast('Failed to delete: ' + error.message, 'danger');
             }
         }
 
@@ -1977,6 +2266,9 @@
             // Check Ollama status (after auth)
             await checkOllamaStatus();
 
+            // Load local GGUF models
+            await loadLocalGGUF();
+
             // Check for active downloads (survives page refresh)
             await checkActiveDownloads();
 
@@ -2070,6 +2362,11 @@
                 e.preventDefault();
                 const modelName = document.getElementById('ollama-model-name').value.trim();
                 if (modelName) pullOllamaModel(modelName);
+            });
+
+            // GGUF search button
+            document.getElementById('gguf-search-btn').addEventListener('click', () => {
+                searchGGUFRepo();
             });
 
             // Parameter sliders
