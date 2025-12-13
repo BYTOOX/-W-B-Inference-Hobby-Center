@@ -739,11 +739,17 @@ class ModelManager:
             # Replace container models path with host models path
             relative_path = str_path[len(str(settings.models_path)):]
             host_path = settings.host_models_path.rstrip("/\\") + relative_path.replace("\\", "/")
-            modelfile_content = f'FROM "{host_path}"\n'
         else:
             # No host path configured, try using container path (might work on Linux)
-            modelfile_content = f'FROM "{gguf_path}"\n'
+            host_path = str(gguf_path)
         
+        # Modelfile content - FROM requires the path without quotes on Windows
+        modelfile_content = f'FROM {host_path}\n'
+        
+        print(f"DEBUG: Modelfile content: {repr(modelfile_content)}")
+        print(f"DEBUG: Host path: {host_path}")
+        
+        yield {"status": "importing", "message": f"📦 Using path: {host_path}", "progress": 0.2}
         yield {"status": "importing", "message": f"📦 Importing to Ollama via API...", "progress": 0.3}
         
         try:
