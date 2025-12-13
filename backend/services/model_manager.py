@@ -583,45 +583,65 @@ class ModelManager:
             start_time = time.time()
             loop = asyncio.get_event_loop()
             
+            # Calculate initial directory size BEFORE download starts
+            initial_size = 0
+            for f in gguf_dir.rglob("*"):
+                if f.is_file():
+                    try:
+                        initial_size += f.stat().st_size
+                    except OSError:
+                        pass
+            
             def do_download():
                 return hf_hub_download(
                     repo_id=repo_id,
                     filename=filename,
                     local_dir=gguf_dir,
-                    local_dir_use_symlinks=False,
-                    resume_download=True,
                 )
             
             # Start download
             download_task = loop.run_in_executor(None, do_download)
             
+            last_downloaded = 0
+            last_time = start_time
+            
             # Monitor progress
             while not download_task.done():
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)  # Check more frequently
                 
-                # Scan entire gguf_dir for download activity
-                current_size = 0
+                # Calculate current total size
+                current_total = 0
                 for f in gguf_dir.rglob("*"):
                     if f.is_file():
                         try:
-                            current_size += f.stat().st_size
+                            current_total += f.stat().st_size
                         except OSError:
                             pass
                 
-                elapsed = time.time() - start_time
-                speed_bps = current_size / elapsed if elapsed > 0 else 0
+                # Downloaded = current - initial (delta)
+                downloaded = max(0, current_total - initial_size)
+                
+                # Speed from last interval
+                now = time.time()
+                time_delta = now - last_time
+                size_delta = downloaded - last_downloaded
+                speed_bps = size_delta / time_delta if time_delta > 0 else 0
                 speed_mbps = speed_bps / (1024 * 1024)
-                remaining = total_size - current_size
+                
+                last_downloaded = downloaded
+                last_time = now
+                
+                remaining = max(0, total_size - downloaded)
                 eta = int(remaining / speed_bps) if speed_bps > 0 else 0
-                percent = (current_size / total_size * 100) if total_size > 0 else 0
+                percent = (downloaded / total_size * 100) if total_size > 0 else 0
                 
                 yield DownloadProgress(
                     model_id=f"{repo_id}/{filename}",
                     filename=filename,
-                    downloaded_bytes=current_size,
+                    downloaded_bytes=downloaded,
                     total_bytes=total_size,
-                    percent=min(percent, 99),
-                    speed_mbps=speed_mbps,
+                    percent=min(max(percent, 0), 99),
+                    speed_mbps=max(speed_mbps, 0),
                     eta_seconds=eta,
                     status="downloading",
                 )
