@@ -2,7 +2,7 @@
 RyzenAI-LocalLab - FastAPI Application Entry Point
 
 Main application with all routes, middleware, and lifecycle events.
-Ollama-only mode - no PyTorch required.
+Unified backend mode - supports Ollama, HuggingFace, and llama.cpp.
 """
 
 import logging
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
 
     logger.info("=" * 60)
-    logger.info("RyzenAI-LocalLab Starting... (Ollama-only mode)")
+    logger.info("RyzenAI-LocalLab Starting... (Unified Multi-Backend)")
     logger.info("=" * 60)
 
     # Initialize database
@@ -91,8 +91,8 @@ async def lifespan(app: FastAPI):
 # =============================================================================
 app = FastAPI(
     title="RyzenAI-LocalLab",
-    description="Interface d'inférence HomeLab pour AMD Ryzen AI MAX+ (Ollama-only)",
-    version="0.1.0",
+    description="Interface d'inférence HomeLab - Ollama + HuggingFace + GGUF (Un seul modèle à la fois)",
+    version="0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -137,8 +137,9 @@ async def api_info():
     """API information."""
     return {
         "name": "RyzenAI-LocalLab API",
-        "version": "0.1.0",
-        "mode": "ollama-only",
+        "version": "0.2.0",
+        "mode": "unified",
+        "backends": ["ollama", "huggingface", "llama_cpp"],
         "docs": "/docs",
         "openai_compatible": "/v1",
     }
