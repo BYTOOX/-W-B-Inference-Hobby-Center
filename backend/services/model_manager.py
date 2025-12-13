@@ -726,15 +726,15 @@ class ModelManager:
             return
         
         # Generate model name from filename if not provided
-        # Ollama requires: lowercase, alphanumeric, underscores, colons only
+        # Ollama requires format like "modelname:tag"
         if not model_name:
             import re
-            stem = gguf_path.stem  # e.g., "DeepSeek-R1-Distill-Llama-70B-Q4_K_M"
-            # Remove invalid chars, keep only alphanumeric and underscores
-            model_name = re.sub(r'[^a-z0-9_]', '', stem.lower())
-            # Limit length and add :latest tag
-            if len(model_name) > 50:
-                model_name = model_name[:50]
+            stem = gguf_path.stem  # e.g., "deepseek-llm-7b-base-q4_k_m"
+            # Keep only lowercase letters and numbers, limit length
+            clean_name = re.sub(r'[^a-z0-9]', '', stem.lower())
+            if len(clean_name) > 30:
+                clean_name = clean_name[:30]
+            model_name = f"{clean_name}:latest"
         
         print(f"DEBUG: Model name: {model_name}")
         
@@ -760,15 +760,22 @@ class ModelManager:
         yield {"status": "importing", "message": f"📦 Using path: {host_path}", "progress": 0.2}
         yield {"status": "importing", "message": f"📦 Importing to Ollama via API...", "progress": 0.3}
         
+        # Create Modelfile content with Windows-style path
+        # Use backslashes for Windows paths
+        windows_path = host_path.replace("/", "\\")
+        modelfile = f'FROM {windows_path}\n'
+        
+        print(f"DEBUG: Modelfile: {repr(modelfile)}")
+        print(f"DEBUG: Model name: {model_name}")
+        
         try:
             async with httpx.AsyncClient(timeout=600.0) as client:
-                # Try using 'from' field directly with the path
-                # Ollama should recognize local GGUF files
+                # Use 'modelfile' parameter with Modelfile content
                 response = await client.post(
                     f"{settings.ollama_host}/api/create",
                     json={
-                        "model": model_name,
-                        "from": host_path,
+                        "name": model_name,
+                        "modelfile": modelfile,
                         "stream": False,
                     }
                 )
