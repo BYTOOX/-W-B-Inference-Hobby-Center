@@ -758,49 +758,40 @@ class ModelManager:
         print(f"DEBUG: Host path: {host_path}")
         
         yield {"status": "importing", "message": f"📦 Using path: {host_path}", "progress": 0.2}
-        yield {"status": "importing", "message": f"📦 Importing to Ollama via API...", "progress": 0.3}
         
         # Create Modelfile content with Windows-style path
-        # Use backslashes for Windows paths
         windows_path = host_path.replace("/", "\\")
-        modelfile = f'FROM {windows_path}\n'
+        modelfile = f'FROM {windows_path}'
         
-        print(f"DEBUG: Modelfile: {repr(modelfile)}")
-        print(f"DEBUG: Model name: {model_name}")
+        # Instead of API (which doesn't support local files well),
+        # provide instructions for manual import via CLI
+        instructions = f"""
+🛠️ **Run these commands on Windows PowerShell:**
+
+1. Create a Modelfile:
+```
+echo 'FROM {windows_path}' > Modelfile
+```
+
+2. Import to Ollama:
+```
+ollama create {model_name} -f Modelfile
+```
+
+3. Delete temp file:
+```
+del Modelfile
+```
+"""
         
-        try:
-            async with httpx.AsyncClient(timeout=600.0) as client:
-                # Use 'modelfile' parameter with Modelfile content
-                response = await client.post(
-                    f"{settings.ollama_host}/api/create",
-                    json={
-                        "name": model_name,
-                        "modelfile": modelfile,
-                        "stream": False,
-                    }
-                )
-                
-                print(f"DEBUG: Response status: {response.status_code}")
-                print(f"DEBUG: Response text: {response.text}")
-                
-                if response.status_code != 200:
-                    error_text = response.text
-                    yield {"status": "error", "message": f"❌ Ollama API error: {error_text}"}
-                    return
-                
-                yield {
-                    "status": "completed", 
-                    "message": f"✅ Model '{model_name}' created in Ollama!", 
-                    "progress": 1.0, 
-                    "model_name": model_name
-                }
-                
-        except httpx.TimeoutException:
-            yield {"status": "error", "message": "❌ Import timed out (model too large?)"}
-        except httpx.ConnectError:
-            yield {"status": "error", "message": "❌ Cannot connect to Ollama. Is it running?"}
-        except Exception as e:
-            yield {"status": "error", "message": f"❌ Import failed: {str(e)}"}
+        yield {
+            "status": "instructions",
+            "message": f"📋 L'import automatique via API n'est pas supporté par Ollama.\n\n{instructions}",
+            "progress": 1.0,
+            "model_name": model_name,
+            "modelfile": modelfile,
+            "host_path": windows_path
+        }
 
     # =========================================================================
     # Storage Stats

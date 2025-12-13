@@ -1596,6 +1596,15 @@
                                 return;
                             }
 
+                            if (data.status === 'instructions') {
+                                // Show CLI instructions in an alert/modal
+                                const cmds = `1. Create Modelfile:\necho 'FROM ${data.host_path}' > Modelfile\n\n2. Import to Ollama:\nollama create ${data.model_name} -f Modelfile\n\n3. Delete temp file:\ndel Modelfile`;
+
+                                alert(`📋 L'import API n'est pas supporté.\n\nExécutez ces commandes dans PowerShell:\n\n${cmds}`);
+                                showToast('📋 Instructions affichées - exécutez dans PowerShell', 'info');
+                                return;
+                            }
+
                             if (data.status === 'error') {
                                 showToast(data.message, 'danger');
                                 return;
