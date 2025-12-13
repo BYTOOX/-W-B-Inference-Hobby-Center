@@ -726,9 +726,17 @@ class ModelManager:
             return
         
         # Generate model name from filename if not provided
+        # Ollama requires: lowercase, alphanumeric, underscores, colons only
         if not model_name:
+            import re
             stem = gguf_path.stem  # e.g., "DeepSeek-R1-Distill-Llama-70B-Q4_K_M"
-            model_name = stem.lower().replace("_", "-")
+            # Remove invalid chars, keep only alphanumeric and underscores
+            model_name = re.sub(r'[^a-z0-9_]', '', stem.lower())
+            # Limit length and add :latest tag
+            if len(model_name) > 50:
+                model_name = model_name[:50]
+        
+        print(f"DEBUG: Model name: {model_name}")
         
         yield {"status": "importing", "message": f"📦 Creating Ollama model '{model_name}'...", "progress": 0.1}
         
