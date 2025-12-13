@@ -5,6 +5,7 @@ Endpoints for model management: listing, downloading, and deletion.
 """
 
 from typing import Optional
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
