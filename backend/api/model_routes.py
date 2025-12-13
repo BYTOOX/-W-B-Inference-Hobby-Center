@@ -7,6 +7,7 @@ Endpoints for model management: listing, downloading, and deletion.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.auth import get_current_active_user
