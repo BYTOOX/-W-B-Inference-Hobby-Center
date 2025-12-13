@@ -754,15 +754,19 @@ class ModelManager:
         
         try:
             async with httpx.AsyncClient(timeout=600.0) as client:
-                # Use Ollama's /api/create endpoint
+                # Try using 'from' field directly with the path
+                # Ollama should recognize local GGUF files
                 response = await client.post(
                     f"{settings.ollama_host}/api/create",
                     json={
-                        "name": model_name,
-                        "modelfile": modelfile_content,
+                        "model": model_name,
+                        "from": host_path,
                         "stream": False,
                     }
                 )
+                
+                print(f"DEBUG: Response status: {response.status_code}")
+                print(f"DEBUG: Response text: {response.text}")
                 
                 if response.status_code != 200:
                     error_text = response.text
