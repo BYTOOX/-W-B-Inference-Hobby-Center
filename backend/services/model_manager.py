@@ -453,6 +453,196 @@ class ModelManager:
             return False
 
     # =========================================================================
+    # GGUF Model Support
+    # =========================================================================
+    async def list_gguf_files(self, repo_id: str) -> list[dict]:
+        """
+        List GGUF files available in a HuggingFace repository.
+        
+        Args:
+            repo_id: HuggingFace repository ID (e.g., "bartowski/DeepSeek-R1-GGUF")
+            
+        Returns:
+            List of GGUF files with name, size, and quantization info
+        """
+        try:
+            model_info = self.hf_api.model_info(repo_id, files_metadata=True)
+            gguf_files = []
+            
+            for f in model_info.siblings:
+                if f.rfilename.endswith(".gguf"):
+                    size_gb = f.size / (1024**3) if f.size else 0
+                    
+                    # Parse quantization from filename
+                    name = f.rfilename
+                    quant = "unknown"
+                    for q in ["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", 
+                              "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0", "IQ4_XS", "IQ3_M"]:
+                        if q.lower() in name.lower() or q in name:
+                            quant = q
+                            break
+                    
+                    gguf_files.append({
+                        "filename": name,
+                        "size_gb": round(size_gb, 2),
+                        "size_bytes": f.size or 0,
+                        "quantization": quant,
+                        "repo_id": repo_id,
+                    })
+            
+            # Sort by size
+            return sorted(gguf_files, key=lambda x: x["size_bytes"])
+            
+        except Exception as e:
+            print(f"Error listing GGUF files: {e}")
+            return []
+    
+    async def download_gguf(self, repo_id: str, filename: str) -> AsyncGenerator[DownloadProgress, None]:
+        """
+        Download a specific GGUF file from HuggingFace.
+        
+        Args:
+            repo_id: HuggingFace repository ID
+            filename: Name of the GGUF file to download
+            
+        Yields:
+            DownloadProgress updates
+        """
+        import asyncio
+        import os
+        import time
+        
+        # Enable hf_transfer for faster downloads
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        
+        # Create GGUF subdirectory
+        gguf_dir = self.models_path / "gguf"
+        gguf_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Safe filename based on repo
+        safe_name = f"{repo_id.replace('/', '_')}_{filename}"
+        local_path = gguf_dir / filename
+        
+        try:
+            # Get file size
+            model_info = self.hf_api.model_info(repo_id, files_metadata=True)
+            file_info = next((f for f in model_info.siblings if f.rfilename == filename), None)
+            
+            if not file_info:
+                yield DownloadProgress(
+                    model_id=f"{repo_id}/{filename}",
+                    filename=filename,
+                    downloaded_bytes=0,
+                    total_bytes=0,
+                    percent=0,
+                    speed_mbps=0,
+                    eta_seconds=0,
+                    status="error",
+                    error=f"File {filename} not found in {repo_id}",
+                )
+                return
+            
+            total_size = file_info.size or 0
+            
+            yield DownloadProgress(
+                model_id=f"{repo_id}/{filename}",
+                filename=filename,
+                downloaded_bytes=0,
+                total_bytes=total_size,
+                percent=0,
+                speed_mbps=0,
+                eta_seconds=0,
+                status="downloading",
+            )
+            
+            start_time = time.time()
+            loop = asyncio.get_event_loop()
+            
+            def do_download():
+                return hf_hub_download(
+                    repo_id=repo_id,
+                    filename=filename,
+                    local_dir=gguf_dir,
+                    local_dir_use_symlinks=False,
+                    resume_download=True,
+                )
+            
+            # Start download
+            download_task = loop.run_in_executor(None, do_download)
+            
+            # Monitor progress
+            while not download_task.done():
+                await asyncio.sleep(1)
+                
+                current_size = 0
+                if local_path.exists():
+                    current_size = local_path.stat().st_size
+                
+                elapsed = time.time() - start_time
+                speed_bps = current_size / elapsed if elapsed > 0 else 0
+                speed_mbps = speed_bps / (1024 * 1024)
+                remaining = total_size - current_size
+                eta = int(remaining / speed_bps) if speed_bps > 0 else 0
+                percent = (current_size / total_size * 100) if total_size > 0 else 0
+                
+                yield DownloadProgress(
+                    model_id=f"{repo_id}/{filename}",
+                    filename=filename,
+                    downloaded_bytes=current_size,
+                    total_bytes=total_size,
+                    percent=min(percent, 99),
+                    speed_mbps=speed_mbps,
+                    eta_seconds=eta,
+                    status="downloading",
+                )
+            
+            # Complete
+            result_path = await download_task
+            elapsed = time.time() - start_time
+            avg_speed = (total_size / (1024 * 1024)) / elapsed if elapsed > 0 else 0
+            
+            yield DownloadProgress(
+                model_id=f"{repo_id}/{filename}",
+                filename=filename,
+                downloaded_bytes=total_size,
+                total_bytes=total_size,
+                percent=100,
+                speed_mbps=avg_speed,
+                eta_seconds=0,
+                status="completed",
+            )
+            
+        except Exception as e:
+            yield DownloadProgress(
+                model_id=f"{repo_id}/{filename}",
+                filename=filename,
+                downloaded_bytes=0,
+                total_bytes=0,
+                percent=0,
+                speed_mbps=0,
+                eta_seconds=0,
+                status="error",
+                error=str(e),
+            )
+    
+    def list_local_gguf(self) -> list[dict]:
+        """List all locally downloaded GGUF files."""
+        gguf_dir = self.models_path / "gguf"
+        if not gguf_dir.exists():
+            return []
+        
+        gguf_files = []
+        for f in gguf_dir.glob("*.gguf"):
+            size_gb = f.stat().st_size / (1024**3)
+            gguf_files.append({
+                "filename": f.name,
+                "path": str(f),
+                "size_gb": round(size_gb, 2),
+            })
+        
+        return sorted(gguf_files, key=lambda x: x["filename"])
+
+    # =========================================================================
     # Storage Stats
     # =========================================================================
     def get_storage_stats(self) -> dict:

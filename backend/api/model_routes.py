@@ -194,3 +194,81 @@ async def get_storage_stats(current_user: User = Depends(get_current_active_user
     stats = model_manager.get_storage_stats()
     return StorageStatsResponse(**stats)
 
+
+# =============================================================================
+# GGUF Model Management
+# =============================================================================
+class GGUFListRequest(BaseModel):
+    """Request to list GGUF files in a repository."""
+    repo_id: str = Field(..., description="HuggingFace repository ID (e.g., 'bartowski/DeepSeek-R1-GGUF')")
+
+
+class GGUFDownloadRequest(BaseModel):
+    """Request to download a GGUF file."""
+    repo_id: str = Field(..., description="HuggingFace repository ID")
+    filename: str = Field(..., description="GGUF filename to download")
+
+
+@router.post("/gguf/list")
+async def list_gguf_files(request: GGUFListRequest, current_user: User = Depends(get_current_active_user)):
+    """
+    List all GGUF files available in a HuggingFace repository.
+    
+    Returns list of files with quantization info and sizes.
+    """
+    files = await model_manager.list_gguf_files(request.repo_id)
+    return {"repo_id": request.repo_id, "files": files}
+
+
+@router.get("/gguf/local")
+async def list_local_gguf(current_user: User = Depends(get_current_active_user)):
+    """List all locally downloaded GGUF files."""
+    files = model_manager.list_local_gguf()
+    return {"files": files}
+
+
+@router.post("/gguf/download")
+async def download_gguf(request: GGUFDownloadRequest, current_user: User = Depends(get_current_active_user)):
+    """
+    Download a specific GGUF file from HuggingFace.
+    
+    Returns SSE stream with progress updates.
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    async def generate():
+        async for progress in model_manager.download_gguf(request.repo_id, request.filename):
+            data = {
+                "model_id": progress.model_id,
+                "filename": progress.filename,
+                "downloaded_bytes": progress.downloaded_bytes,
+                "total_bytes": progress.total_bytes,
+                "percent": progress.percent,
+                "speed_mbps": progress.speed_mbps,
+                "eta_seconds": progress.eta_seconds,
+                "status": progress.status,
+                "error": progress.error,
+            }
+            yield f"data: {json.dumps(data)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.delete("/gguf/{filename}")
+async def delete_gguf(filename: str, current_user: User = Depends(get_current_active_user)):
+    """Delete a downloaded GGUF file."""
+    import os
+    from backend.config import settings
+    
+    gguf_path = settings.models_path / "gguf" / filename
+    
+    if not gguf_path.exists():
+        raise HTTPException(status_code=404, detail="GGUF file not found")
+    
+    try:
+        os.remove(gguf_path)
+        return {"message": "GGUF file deleted", "filename": filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
