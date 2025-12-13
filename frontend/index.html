@@ -227,6 +227,238 @@
                 box-shadow: 0 0 20px var(--accent-cyan), 0 0 30px var(--accent-purple);
             }
         }
+
+        /* ===== Download Card Premium Styles ===== */
+        .download-card {
+            background: linear-gradient(135deg, rgba(22, 27, 34, 0.95), rgba(33, 38, 45, 0.9));
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(0, 212, 255, 0.1) inset,
+                0 0 20px rgba(0, 212, 255, 0.1);
+            animation: cardAppear 0.3s ease-out;
+        }
+
+        @keyframes cardAppear {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .download-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .download-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 10px rgba(0, 212, 255, 0);
+            }
+        }
+
+        .download-title {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .download-model-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .download-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--accent-green);
+            opacity: 0.9;
+        }
+
+        .download-status-badge i {
+            animation: bounce 1s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(3px);
+            }
+        }
+
+        .download-file {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .download-progress-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .download-progress {
+            flex: 1;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .download-progress .progress-bar {
+            background: linear-gradient(90deg,
+                    var(--accent-cyan),
+                    var(--accent-purple),
+                    var(--accent-cyan));
+            background-size: 200% 100%;
+            animation: shimmer 2s linear infinite;
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .download-percent {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            min-width: 70px;
+            text-align: right;
+        }
+
+        .download-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .download-stat {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 0.75rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .download-stat:hover {
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(0, 212, 255, 0.2);
+        }
+
+        .download-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        .download-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+        }
+
+        .download-footer {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .download-footer::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* Responsive for smaller screens */
+        @media (max-width: 768px) {
+            .download-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
     </style>
 </head>
 
@@ -400,14 +632,58 @@
                                     </button>
                                 </div>
                             </form>
+                            <!-- Enhanced Download Progress Card -->
                             <div id="ollama-pull-progress" class="mb-3 d-none">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span id="ollama-pull-status">Pulling...</span>
-                                    <span id="ollama-pull-percent">0%</span>
-                                </div>
-                                <div class="progress">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                        id="ollama-pull-bar" style="width: 0%"></div>
+                                <div class="download-card">
+                                    <div class="download-header">
+                                        <div class="download-icon">
+                                            <i class="bi bi-cloud-download"></i>
+                                        </div>
+                                        <div class="download-title">
+                                            <span class="download-model-name" id="ollama-pull-model">Model Name</span>
+                                            <span class="download-status-badge" id="ollama-pull-status-badge">
+                                                <i class="bi bi-arrow-down-circle"></i> Downloading
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="download-file" id="ollama-pull-file">
+                                        <i class="bi bi-file-earmark-binary me-1"></i>
+                                        <span id="ollama-pull-digest">Preparing...</span>
+                                    </div>
+
+                                    <div class="download-progress-container">
+                                        <div class="progress download-progress">
+                                            <div class="progress-bar progress-bar-animated" id="ollama-pull-bar"
+                                                style="width: 0%"></div>
+                                        </div>
+                                        <div class="download-percent" id="ollama-pull-percent">0%</div>
+                                    </div>
+
+                                    <div class="download-stats">
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="ollama-pull-size">0 MB</div>
+                                            <div class="download-stat-label">Downloaded</div>
+                                        </div>
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="ollama-pull-total">-- MB</div>
+                                            <div class="download-stat-label">Total Size</div>
+                                        </div>
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="ollama-pull-speed">
+                                                <i class="bi bi-speedometer2 me-1"></i>-- MB/s
+                                            </div>
+                                            <div class="download-stat-label">Speed</div>
+                                        </div>
+                                        <div class="download-stat">
+                                            <div class="download-stat-value" id="ollama-pull-eta">
+                                                <i class="bi bi-clock me-1"></i>--:--
+                                            </div>
+                                            <div class="download-stat-label">Time Left</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="download-footer" id="ollama-pull-status">Initializing download...</div>
                                 </div>
                             </div>
                             <div id="ollama-models-list" class="row g-3">
@@ -922,9 +1198,69 @@
             const progressBar = document.getElementById('ollama-pull-bar');
             const progressStatus = document.getElementById('ollama-pull-status');
             const progressPercent = document.getElementById('ollama-pull-percent');
+            const modelNameEl = document.getElementById('ollama-pull-model');
+            const digestEl = document.getElementById('ollama-pull-digest');
+            const sizeEl = document.getElementById('ollama-pull-size');
+            const totalEl = document.getElementById('ollama-pull-total');
+            const speedEl = document.getElementById('ollama-pull-speed');
+            const etaEl = document.getElementById('ollama-pull-eta');
+            const statusBadge = document.getElementById('ollama-pull-status-badge');
 
+            // Reset and show progress card
             progressDiv.classList.remove('d-none');
-            progressStatus.textContent = 'Starting pull...';
+            modelNameEl.textContent = modelName;
+            progressStatus.textContent = 'Initializing download...';
+            progressPercent.textContent = '0%';
+            progressBar.style.width = '0%';
+            digestEl.textContent = 'Preparing...';
+            sizeEl.textContent = '0 MB';
+            totalEl.textContent = '-- MB';
+            speedEl.innerHTML = '<i class="bi bi-speedometer2 me-1"></i>-- MB/s';
+            etaEl.innerHTML = '<i class="bi bi-clock me-1"></i>--:--';
+            statusBadge.innerHTML = '<i class="bi bi-arrow-down-circle"></i> Downloading';
+
+            // Speed calculation variables
+            let lastCompleted = 0;
+            let lastTime = Date.now();
+            let speeds = []; // Rolling average for smooth speed display
+
+            // Helper functions
+            const formatBytes = (bytes) => {
+                if (bytes >= 1024 * 1024 * 1024) {
+                    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+                } else if (bytes >= 1024 * 1024) {
+                    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                } else if (bytes >= 1024) {
+                    return `${(bytes / 1024).toFixed(0)} KB`;
+                }
+                return `${bytes} B`;
+            };
+
+            const formatETA = (seconds) => {
+                if (!isFinite(seconds) || seconds < 0 || seconds > 86400 * 7) {
+                    return '--:--';
+                }
+                if (seconds >= 3600) {
+                    const hours = Math.floor(seconds / 3600);
+                    const mins = Math.floor((seconds % 3600) / 60);
+                    return `${hours}h ${mins}m`;
+                } else if (seconds >= 60) {
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins}m ${secs}s`;
+                } else {
+                    return `${Math.floor(seconds)}s`;
+                }
+            };
+
+            const formatSpeed = (bytesPerSec) => {
+                if (bytesPerSec >= 1024 * 1024) {
+                    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+                } else if (bytesPerSec >= 1024) {
+                    return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+                }
+                return `${bytesPerSec.toFixed(0)} B/s`;
+            };
 
             try {
                 const response = await fetch(`${API_BASE}/api/ollama/pull`, {
@@ -947,27 +1283,96 @@
                     const lines = text.split('\n').filter(l => l.startsWith('data: '));
 
                     for (const line of lines) {
-                        const data = JSON.parse(line.slice(6));
-                        progressStatus.textContent = data.status || 'Pulling...';
+                        try {
+                            const data = JSON.parse(line.slice(6));
 
-                        if (data.total > 0) {
-                            const percent = Math.round((data.completed / data.total) * 100);
-                            progressPercent.textContent = `${percent}%`;
-                            progressBar.style.width = `${percent}%`;
-                        }
+                            // Update status message
+                            const statusText = data.status || 'Processing...';
+                            progressStatus.textContent = statusText;
 
-                        if (data.status === 'success' || data.status?.includes('success')) {
-                            showToast('Model pulled successfully!', 'success');
-                            progressDiv.classList.add('d-none');
-                            await loadOllamaModels();
+                            // Update digest/layer info
+                            if (data.digest) {
+                                const shortDigest = data.digest.slice(0, 12) + '...' + data.digest.slice(-8);
+                                digestEl.textContent = shortDigest;
+                            } else if (statusText.includes('pulling')) {
+                                digestEl.textContent = statusText;
+                            }
+
+                            // Progress with speed calculation
+                            if (data.total > 0) {
+                                const completed = data.completed || 0;
+                                const total = data.total;
+                                const percent = Math.round((completed / total) * 100);
+
+                                // Calculate speed
+                                const now = Date.now();
+                                const timeDiff = (now - lastTime) / 1000; // seconds
+
+                                if (timeDiff > 0.1 && completed > lastCompleted) {
+                                    const bytesDownloaded = completed - lastCompleted;
+                                    const currentSpeed = bytesDownloaded / timeDiff;
+
+                                    // Rolling average (keep last 5 samples)
+                                    speeds.push(currentSpeed);
+                                    if (speeds.length > 5) speeds.shift();
+
+                                    const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+
+                                    // Update speed display
+                                    speedEl.innerHTML = `<i class="bi bi-speedometer2 me-1"></i>${formatSpeed(avgSpeed)}`;
+
+                                    // Calculate ETA
+                                    const remaining = total - completed;
+                                    const eta = avgSpeed > 0 ? remaining / avgSpeed : 0;
+                                    etaEl.innerHTML = `<i class="bi bi-clock me-1"></i>${formatETA(eta)}`;
+
+                                    lastCompleted = completed;
+                                    lastTime = now;
+                                }
+
+                                // Update progress bar and sizes
+                                progressPercent.textContent = `${percent}%`;
+                                progressBar.style.width = `${percent}%`;
+                                sizeEl.textContent = formatBytes(completed);
+                                totalEl.textContent = formatBytes(total);
+                            }
+
+                            // Handle different statuses
+                            if (statusText === 'success' || statusText.includes('success')) {
+                                statusBadge.innerHTML = '<i class="bi bi-check-circle"></i> Complete!';
+                                statusBadge.style.color = 'var(--accent-green)';
+                                progressStatus.textContent = '✨ Model downloaded successfully!';
+                                etaEl.innerHTML = '<i class="bi bi-check-lg me-1"></i>Done!';
+                                showToast('Model pulled successfully!', 'success');
+                                setTimeout(() => {
+                                    progressDiv.classList.add('d-none');
+                                }, 2000);
+                                await loadOllamaModels();
+                                return;
+                            }
+
+                            if (data.status?.includes('verifying') || data.status?.includes('writing')) {
+                                statusBadge.innerHTML = '<i class="bi bi-gear"></i> Finalizing';
+                                speedEl.innerHTML = '<i class="bi bi-gear me-1"></i>--';
+                                etaEl.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Almost done';
+                            }
+
+                        } catch (parseError) {
+                            console.warn('Parse error:', parseError);
                         }
                     }
                 }
             } catch (error) {
+                progressStatus.textContent = `❌ Error: ${error.message}`;
+                statusBadge.innerHTML = '<i class="bi bi-x-circle"></i> Failed';
+                statusBadge.style.color = 'var(--accent-red)';
                 showToast('Pull failed: ' + error.message, 'danger');
             }
 
-            progressDiv.classList.add('d-none');
+            // Keep visible for a moment on completion/error
+            setTimeout(() => {
+                progressDiv.classList.add('d-none');
+            }, 3000);
         }
 
         async function deleteOllamaModel(modelName) {
