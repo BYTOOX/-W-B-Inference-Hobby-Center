@@ -536,17 +536,13 @@ class ModelManager:
         import asyncio
         import os
         import time
-        
-        # Enable hf_transfer for faster downloads
-        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        from pathlib import Path
+        from queue import Queue, Empty
+        from threading import Thread
         
         # Create GGUF subdirectory
         gguf_dir = self.models_path / "gguf"
         gguf_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Safe filename based on repo
-        safe_name = f"{repo_id.replace('/', '_')}_{filename}"
-        local_path = gguf_dir / filename
         
         try:
             # Get file size
@@ -580,74 +576,91 @@ class ModelManager:
                 status="downloading",
             )
             
+            # Use a queue to communicate progress from thread
+            progress_queue: Queue = Queue()
+            result_holder = {"path": None, "error": None}
+            
+            def download_with_progress():
+                """Download in thread with tqdm callback."""
+                try:
+                    from tqdm import tqdm
+                    
+                    class ProgressCallback(tqdm):
+                        def __init__(self, *args, **kwargs):
+                            super().__init__(*args, **kwargs)
+                            self.last_update = time.time()
+                            
+                        def update(self, n=1):
+                            super().update(n)
+                            now = time.time()
+                            if now - self.last_update >= 0.3:  # Update every 300ms
+                                progress_queue.put({
+                                    "downloaded": self.n,
+                                    "total": self.total or total_size,
+                                    "rate": self.format_dict.get("rate", 0) or 0,
+                                })
+                                self.last_update = now
+                    
+                    # Download with progress callback
+                    path = hf_hub_download(
+                        repo_id=repo_id,
+                        filename=filename,
+                        local_dir=gguf_dir,
+                        force_download=False,
+                        tqdm_class=ProgressCallback,
+                    )
+                    result_holder["path"] = path
+                except Exception as e:
+                    result_holder["error"] = str(e)
+                finally:
+                    progress_queue.put(None)  # Signal completion
+            
+            # Start download thread
+            thread = Thread(target=download_with_progress)
+            thread.start()
+            
             start_time = time.time()
-            loop = asyncio.get_event_loop()
             
-            # Calculate initial directory size BEFORE download starts
-            initial_size = 0
-            for f in gguf_dir.rglob("*"):
-                if f.is_file():
-                    try:
-                        initial_size += f.stat().st_size
-                    except OSError:
-                        pass
+            # Monitor progress from queue
+            while True:
+                await asyncio.sleep(0.2)
+                
+                try:
+                    progress = progress_queue.get_nowait()
+                    
+                    if progress is None:
+                        # Download complete or failed
+                        break
+                    
+                    downloaded = progress.get("downloaded", 0)
+                    rate = progress.get("rate", 0)
+                    speed_mbps = rate / (1024 * 1024) if rate else 0
+                    
+                    remaining = total_size - downloaded
+                    eta = int(remaining / rate) if rate > 0 else 0
+                    percent = (downloaded / total_size * 100) if total_size > 0 else 0
+                    
+                    yield DownloadProgress(
+                        model_id=f"{repo_id}/{filename}",
+                        filename=filename,
+                        downloaded_bytes=downloaded,
+                        total_bytes=total_size,
+                        percent=min(max(percent, 0), 99),
+                        speed_mbps=max(speed_mbps, 0),
+                        eta_seconds=eta,
+                        status="downloading",
+                    )
+                except Empty:
+                    # No new progress, just wait
+                    pass
             
-            def do_download():
-                return hf_hub_download(
-                    repo_id=repo_id,
-                    filename=filename,
-                    local_dir=gguf_dir,
-                )
+            # Wait for thread to finish
+            thread.join(timeout=5)
             
-            # Start download
-            download_task = loop.run_in_executor(None, do_download)
-            
-            last_downloaded = 0
-            last_time = start_time
-            
-            # Monitor progress
-            while not download_task.done():
-                await asyncio.sleep(0.5)  # Check more frequently
-                
-                # Calculate current total size
-                current_total = 0
-                for f in gguf_dir.rglob("*"):
-                    if f.is_file():
-                        try:
-                            current_total += f.stat().st_size
-                        except OSError:
-                            pass
-                
-                # Downloaded = current - initial (delta)
-                downloaded = max(0, current_total - initial_size)
-                
-                # Speed from last interval
-                now = time.time()
-                time_delta = now - last_time
-                size_delta = downloaded - last_downloaded
-                speed_bps = size_delta / time_delta if time_delta > 0 else 0
-                speed_mbps = speed_bps / (1024 * 1024)
-                
-                last_downloaded = downloaded
-                last_time = now
-                
-                remaining = max(0, total_size - downloaded)
-                eta = int(remaining / speed_bps) if speed_bps > 0 else 0
-                percent = (downloaded / total_size * 100) if total_size > 0 else 0
-                
-                yield DownloadProgress(
-                    model_id=f"{repo_id}/{filename}",
-                    filename=filename,
-                    downloaded_bytes=downloaded,
-                    total_bytes=total_size,
-                    percent=min(max(percent, 0), 99),
-                    speed_mbps=max(speed_mbps, 0),
-                    eta_seconds=eta,
-                    status="downloading",
-                )
+            if result_holder["error"]:
+                raise Exception(result_holder["error"])
             
             # Complete
-            result_path = await download_task
             elapsed = time.time() - start_time
             avg_speed = (total_size / (1024 * 1024)) / elapsed if elapsed > 0 else 0
             
